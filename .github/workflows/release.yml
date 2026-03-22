@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Тег Docker-образа в GHCR (например v1.2.0 или 2025-03-22)"
+        description: "Docker image tag"
         required: true
         type: string
 
