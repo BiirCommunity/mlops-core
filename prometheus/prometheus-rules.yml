@@ -1,0 +1,13 @@
+groups:
+  - name: lm_aggregates
+    rules:
+      - record: prompt_length_chars_avg
+        expr: prompt_length_chars_sum / prompt_length_chars_count
+      - record: response_length_chars_avg
+        expr: response_length_chars_sum / response_length_chars_count
+      - record: request_latency_seconds_avg
+        expr: request_latency_seconds_sum / request_latency_seconds_count
+      - record: response_toxicity_score_avg
+        expr: response_toxicity_score_sum / response_toxicity_score_count
+      - record: response_json_valid_ratio
+        expr: response_json_valid_total{status="valid"} / ignoring(status) sum(response_json_valid_total)
