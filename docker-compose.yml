@@ -5,6 +5,7 @@ services:
     env_file:
       - .env.docker.compose
     environment:
+      - RUN_MODE=WEBSERVER
       - DEVICE=${DEVICE}
       - CHECKPOINT_PATH=${CHECKPOINT_PATH}
       - TOKENIZER_NAME=${TOKENIZER_NAME}
@@ -12,7 +13,7 @@ services:
       - PORT=${PORT}
       - HF_TOKEN=${HF_TOKEN}
     volumes:
-      - ${CKPT_HOST_PATH}:/models/model.pt:ro
+      - ${CKPT_HOST_PATH}:/models/finetuned2.pt:ro
     ports:
       - "${PORT}:8080"
     deploy:
@@ -48,6 +49,13 @@ services:
       - grafana-data:/var/lib/grafana
       - ./grafana-provisioning/dashboards:/var/lib/grafana/dashboards
       - ./grafana-provisioning/dashboards/dashboard.yml:/etc/grafana/provisioning/dashboards/dashboard.yml:ro
+  redis-llm:
+    image: redis:7-alpine
+    container_name: redis-llm
+    command: redis-server --appendonly no
+    ports:
+      - "6379:6379"
+  
 
 volumes:
   grafana-data-llm:
