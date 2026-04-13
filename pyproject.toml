@@ -42,4 +42,6 @@ disable = [
     "missing-module-docstring",
     "missing-class-docstring",
     "missing-function-docstring",
+    "invalid-name",
+    "wrong-import-position",
 ]
