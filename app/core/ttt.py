@@ -7,9 +7,8 @@ from typing import Any
 
 import torch
 
-from core.transformer import CausalLM, Batch, cross_entropy_loss_and_accuracy
-from conf.model import MODEL_CFG
-
+from app.conf.model import MODEL_CFG
+from app.core.transformer import Batch, CausalLM, cross_entropy_loss_and_accuracy
 
 
 def get_inner_params(model: CausalLM) -> dict[str, torch.nn.Parameter]:
@@ -66,8 +65,7 @@ def extract_inner_state_dict(model: CausalLM) -> dict[str, torch.Tensor]:
         вызывающий код обычно переносит их на CPU.
     """
     return {
-        name: param.detach().clone()
-        for name, param in get_inner_params(model).items()
+        name: param.detach().clone() for name, param in get_inner_params(model).items()
     }
 
 
@@ -167,7 +165,9 @@ def ttt_adapt(
     verbose: bool = True,
     *,
     clone_model: bool = True,  # ---
-    step_callback: Callable[[int, CausalLM, dict[str, torch.Tensor], float], None] | None = None,  # ---
+    step_callback: (
+        Callable[[int, CausalLM, dict[str, torch.Tensor], float], None] | None
+    ) = None,  # ---
 ) -> CausalLM:
     """
     Выполнить Test-Time Training (TTT) на заданном контексте.
@@ -188,7 +188,9 @@ def ttt_adapt(
 
     inner_params = get_inner_params(adapted)
     if not inner_params:
-        raise RuntimeError("get_inner_params(...) вернул пустой набор параметров для TTT")
+        raise RuntimeError(
+            "get_inner_params(...) вернул пустой набор параметров для TTT"
+        )
 
     for name, p in adapted.named_parameters():
         p.requires_grad_(name in inner_params)

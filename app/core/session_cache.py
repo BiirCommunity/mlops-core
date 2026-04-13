@@ -19,7 +19,7 @@ class RedisTTTSessionCache:
       - Redis-lock по session_id для защиты от race condition.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-locals
         self,
         redis_url: str,
         ttl_sec: int = 3600,
@@ -77,7 +77,9 @@ class RedisTTTSessionCache:
 
         acquired = lock.acquire(blocking=True)
         if not acquired:
-            raise TimeoutError(f"Не удалось получить Redis-lock для session_id={session_id}")
+            raise TimeoutError(
+                f"Не удалось получить Redis-lock для session_id={session_id}"
+            )
 
         try:
             yield
@@ -145,10 +147,7 @@ class RedisTTTSessionCache:
         self.client.expire(self._weights_key(session_id), self.ttl_sec)
         self.client.expire(self._meta_key(session_id), self.ttl_sec)
 
-        return {
-            k: v.to(device)
-            for k, v in payload["inner_state"].items()
-        }
+        return {k: v.to(device) for k, v in payload["inner_state"].items()}
 
     # --- для отладки ---
     def get_meta(self, session_id: str) -> dict[bytes, bytes]:

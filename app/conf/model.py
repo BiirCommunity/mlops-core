@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import torch
 
-from core.transformer import ModelConfig
+from app.core.transformer import ModelConfig
 
 MODEL_CFG = ModelConfig(
     vocab_size=128256,

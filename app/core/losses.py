@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import torch
 
-
-from core.transformer import cross_entropy_loss_and_accuracy  # type: ignore
+from app.core.transformer import cross_entropy_loss_and_accuracy  # type: ignore
 
 
 def language_modeling_loss(
@@ -25,8 +24,5 @@ def language_modeling_loss(
     Под капотом делегирует работу функции `cross_entropy_loss_and_accuracy`
     из `transformer.py` и забирает только компоненту loss.
     """
-    loss, _ = cross_entropy_loss_and_accuracy(
-        logits, target_tokens, loss_masks
-    )
+    loss, _ = cross_entropy_loss_and_accuracy(logits, target_tokens, loss_masks)
     return loss
-

@@ -8,8 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 # Config
+
 
 @dataclass(unsafe_hash=True, eq=True)
 class ModelConfig:
@@ -73,7 +73,9 @@ class ModelConfig:
     post_norm: bool = True
     feed_forward_prime: str = "swiglu"
 
+
 # Batch и вспомогательные функции
+
 
 @dataclass
 class Batch:
@@ -97,8 +99,12 @@ class Batch:
             input_ids=self.input_ids[index],
             target_tokens=self.target_tokens[index],
             loss_masks=self.loss_masks[index],
-            attention_mask=self.attention_mask[index] if self.attention_mask is not None else None,
-            position_ids=self.position_ids[index] if self.position_ids is not None else None,
+            attention_mask=(
+                self.attention_mask[index] if self.attention_mask is not None else None
+            ),
+            position_ids=(
+                self.position_ids[index] if self.position_ids is not None else None
+            ),
             index=index,
         )
 
@@ -122,7 +128,9 @@ def promote_dtype(*tensors: torch.Tensor, dtype: torch.dtype) -> list[torch.Tens
     """Привести все тензоры к одному dtype (аналог jax-помощника)."""
     return [t.to(dtype) for t in tensors]
 
+
 # RoPE и линейный слой
+
 
 def precompute_freqs_cis(
     dim: int,
@@ -138,7 +146,7 @@ def precompute_freqs_cis(
 
 
 def apply_rotary_emb(x: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
-    B, T, H, D = x.shape
+    B, T, H, D = x.shape 
     x = x.reshape(B, T, H, D // 2, 2)
     x_c = torch.view_as_complex(x)  # [B, T, H, D/2]
     # freqs_cis должен быть [B, T, H, D/2] или [B, T, 1, D/2]
@@ -175,7 +183,9 @@ class NormalLinear(nn.Module):
         x, weight = promote_dtype(x, self.weight, dtype=self.compute_dtype)
         return x @ weight
 
+
 # Attention
+
 
 class AttentionBase(nn.Module):
     """Базовый класс для разных вариантов attention."""
@@ -211,7 +221,9 @@ class AttentionBase(nn.Module):
         # Pre-computed RoPE table (необучаемый буфер).
         self.register_buffer(
             "_freqs_cis",
-            precompute_freqs_cis(self.head_dim, 2 * config.seq_len, theta=config.rope_theta),
+            precompute_freqs_cis(
+                self.head_dim, 2 * config.seq_len, theta=config.rope_theta
+            ),
             persistent=False,
         )
 
@@ -236,7 +248,9 @@ class AttentionBase(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return self.wq(hidden_states), self.wk(hidden_states), self.wv(hidden_states)
 
-    def apply_rope(self, xis: tuple[torch.Tensor, ...], position_ids: torch.Tensor) -> tuple[torch.Tensor, ...]:
+    def apply_rope(
+        self, xis: tuple[torch.Tensor, ...], position_ids: torch.Tensor
+    ) -> tuple[torch.Tensor, ...]:
         # xis: xq/xk [B, T, H, D]
         # position_ids: [B, T]
         freqs = self.freqs_cis[position_ids]  # [B, T, D/2] (нужно правильно broadcast)
@@ -310,16 +324,20 @@ class Attention(AttentionBase):
     ) -> tuple[torch.Tensor, Any]:
         # Гарантируем форму [B, T, D]
         if hidden_states.dim() != 3:
-            hidden_states = hidden_states.view(hidden_states.shape[0], hidden_states.shape[1], -1)
+            hidden_states = hidden_states.view(
+                hidden_states.shape[0], hidden_states.shape[1], -1
+            )
         B, T, _ = hidden_states.shape
         if seq.position_ids is None:
-            position_ids = torch.arange(T, device=hidden_states.device).unsqueeze(0).expand(B, T)  # [B, T]
+            position_ids = (
+                torch.arange(T, device=hidden_states.device).unsqueeze(0).expand(B, T)
+            )  # [B, T]
         else:
             position_ids = seq.position_ids
         xq, xk, xv = self.get_attention_input(hidden_states, position_ids)
 
         # KV-кэш: state = (k_cache, v_cache)
-        k_cache, v_cache = (state or (None, None))
+        k_cache, v_cache = state or (None, None)
         if k_cache is not None:
             xk = torch.cat([k_cache, xk], dim=1)
             xv = torch.cat([v_cache, xv], dim=1)
@@ -333,7 +351,10 @@ class Attention(AttentionBase):
         # ограничиваем длину кэша, если задано окно
         k_new = xk
         v_new = xv
-        if self.config.sliding_window_size and k_new.shape[1] > self.config.sliding_window_size:
+        if (
+            self.config.sliding_window_size
+            and k_new.shape[1] > self.config.sliding_window_size
+        ):
             k_new = k_new[:, -self.config.sliding_window_size :, :, :]
             v_new = v_new[:, -self.config.sliding_window_size :, :, :]
 
@@ -395,10 +416,16 @@ class PrimeStorage(nn.Module):
             [SwiGLUMLP(config) for _ in range(suffix_len)]
         )
         self.ffn_prime_norm = nn.ModuleList(
-            [nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps) for _ in range(suffix_len)]
+            [
+                nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+                for _ in range(suffix_len)
+            ]
         )
         self.ffn_prime_post_norm = nn.ModuleList(
-            [nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps) for _ in range(suffix_len)]
+            [
+                nn.RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+                for _ in range(suffix_len)
+            ]
         )
 
     def forward(self):
@@ -478,7 +505,9 @@ class Block(nn.Module):
         is_prefix: bool = False,
     ) -> tuple[torch.Tensor, Any]:
         # 1. Блок attention.
-        seq_out, state = self.seq_modeling_forward(hidden_states, state, seq, is_prefix=is_prefix)
+        seq_out, state = self.seq_modeling_forward(
+            hidden_states, state, seq, is_prefix=is_prefix
+        )
         hidden_states = hidden_states + seq_out
 
         # 2. Опциональный prime‑FFN (для suffix‑блоков).
@@ -512,7 +541,9 @@ class BlockCollection(nn.Module):
     def __init__(self, config: ModelConfig):
         super().__init__()
         self.config = config
-        self.blocks = nn.ModuleList([Block(config) for _ in range(config.num_hidden_layers)])
+        self.blocks = nn.ModuleList(
+            [Block(config) for _ in range(config.num_hidden_layers)]
+        )
         self.prime_storage: PrimeStorage | None = (
             PrimeStorage(config) if config.prime else None
         )
@@ -592,7 +623,9 @@ class CausalLM(nn.Module):
 
     def _compute_logits(self, hidden_states: torch.Tensor) -> torch.Tensor:
         if self.config.tie_word_embeddings:
-            hs, kernel = promote_dtype(hidden_states, self.model.wte.weight.T, dtype=self.compute_dtype)
+            hs, kernel = promote_dtype(
+                hidden_states, self.model.wte.weight.T, dtype=self.compute_dtype
+            )
             return hs @ kernel
         return self.lm_head(hidden_states)
 
@@ -602,21 +635,23 @@ class CausalLM(nn.Module):
     def forward(self, state, seq: Batch) -> CausalLMOutput:
         outputs = self.model(state, seq)
         hs = outputs.last_hidden_state
-        assert hs.dtype == self.compute_dtype, (
-            "hidden_states before lm_head should be in compute_dtype"
-        )
+        assert (
+            hs.dtype == self.compute_dtype
+        ), "hidden_states before lm_head should be in compute_dtype"
         return CausalLMOutput(
             last_hidden_states=hs,
             logits=self._compute_logits(hs),
             new_state=outputs.state,
         )
 
+
 # Loss functions
 
+
 def cross_entropy_loss_and_accuracy(
-    logits: torch.Tensor,              # [B, T, vocab_size]
-    tokens: torch.Tensor,              # [B, T]
-    valid: torch.Tensor | None = None, # [B, T] float mask
+    logits: torch.Tensor,  # [B, T, vocab_size]
+    tokens: torch.Tensor,  # [B, T]
+    valid: torch.Tensor | None = None,  # [B, T] float mask
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Cross‑entropy loss поверх логитов LM.
@@ -632,7 +667,9 @@ def cross_entropy_loss_and_accuracy(
     logits = logits.float()
     log_prob = F.log_softmax(logits, dim=-1)
     token_log_prob = log_prob.gather(-1, tokens.long().unsqueeze(-1)).squeeze(-1)
-    token_log_prob = torch.where(valid > 0.0, token_log_prob, torch.zeros_like(token_log_prob))
+    token_log_prob = torch.where(
+        valid > 0.0, token_log_prob, torch.zeros_like(token_log_prob)
+    )
 
     token_wise_loss = -token_log_prob
     loss_pure_ce = (token_wise_loss.sum(dim=-1) / valid_text_length).mean()
@@ -641,8 +678,8 @@ def cross_entropy_loss_and_accuracy(
 
 
 def token_log_probs(
-    logits: torch.Tensor,    # [B, T, vocab_size]
-    targets: torch.Tensor,   # [B, T]
+    logits: torch.Tensor,  # [B, T, vocab_size]
+    targets: torch.Tensor,  # [B, T]
 ) -> torch.Tensor:
     """
     Лог‑вероятности целевых токенов по логитам модели.

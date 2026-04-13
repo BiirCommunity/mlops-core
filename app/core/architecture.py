@@ -5,9 +5,8 @@ from dataclasses import dataclass
 import torch
 import torch.nn.functional as F
 
-
-from core.transformer import Batch, CausalLM, cross_entropy_loss_and_accuracy 
-from conf.model import MODEL_CFG 
+from app.conf.model import MODEL_CFG
+from app.core.transformer import Batch, CausalLM, cross_entropy_loss_and_accuracy
 
 
 @dataclass
@@ -22,6 +21,7 @@ class GenerationConfig:
     - repetition_penalty: штраф за повторяющиеся токены;
     - eos_token_id: специальный токен завершения (если встречен — стоп).
     """
+
     max_new_tokens: int = 200
     temperature: float = 0.8
     top_p: float = 0.9
@@ -81,13 +81,13 @@ def make_batch(input_ids: torch.Tensor, device: torch.device) -> Batch:
         - loss_masks: [1, T-1] — единицы (считать loss на каждом токене).
     """
     T = input_ids.shape[0]
-    src = input_ids[:-1]          # [T-1] входные токены
-    tgt = input_ids[1:]           # [T-1] целевые токены
+    src = input_ids[:-1]  # [T-1] входные токены
+    tgt = input_ids[1:]  # [T-1] целевые токены
     mask = torch.ones(T - 1, dtype=torch.float32, device=device)
     return Batch(
-        input_ids=src.unsqueeze(0).to(device),      # [1, T-1]
+        input_ids=src.unsqueeze(0).to(device),  # [1, T-1]
         target_tokens=tgt.unsqueeze(0).to(device),  # [1, T-1]
-        loss_masks=mask.unsqueeze(0).to(device),    # [1, T-1]
+        loss_masks=mask.unsqueeze(0).to(device),  # [1, T-1]
     )
 
 
@@ -121,13 +121,15 @@ def generate(
 
         # Формируем псевдо‑батч из всей последовательности: модель ожидает объект `Batch`.
         batch = Batch(
-            input_ids=generated.unsqueeze(0),   # [1, T]
+            input_ids=generated.unsqueeze(0),  # [1, T]
             target_tokens=dummy_tgt,
             loss_masks=dummy_mask,
         )
 
         try:
-            from .config import MODEL_CFG as _CFG  # локальный импорт, чтобы избежать циклов
+            from .config import (
+                MODEL_CFG as _CFG,
+            )  # локальный импорт, чтобы избежать циклов
         except ImportError:  # script-mode fallback
             from config import MODEL_CFG as _CFG  # type: ignore
 
@@ -175,7 +177,7 @@ def generate(
         if next_tok.item() == gen_cfg.eos_token_id:
             break
 
-    return generated[prompt_ids.shape[0]:]
+    return generated[prompt_ids.shape[0] :]
 
 
 def lm_loss(

@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Iterable, List
 
 import torch
-from torch.utils.data import Dataset, DataLoader, Subset
+from torch.utils.data import DataLoader, Dataset, Subset
 
-from core.transformer import Batch
+from app.core.transformer import Batch
 
 
 class TextDataset(Dataset):
@@ -79,8 +79,8 @@ def collate_lm(
     tgt_list = [t[1:] for t in tensors]
 
     # Склеиваем примеры в батч по первой размерности.
-    src = torch.stack(src_list, dim=0).to(device)   # [B, T-1]
-    tgt = torch.stack(tgt_list, dim=0).to(device)   # [B, T-1]
+    src = torch.stack(src_list, dim=0).to(device)  # [B, T-1]
+    tgt = torch.stack(tgt_list, dim=0).to(device)  # [B, T-1]
     mask = torch.ones_like(tgt, dtype=torch.float32, device=device)
 
     return Batch(

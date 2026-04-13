@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.135.1",
+    "isort>=8.0.1",
     "langdetect>=1.0.9",
     "prometheus-client>=0.25.0",
     "redis>=7.4.0",

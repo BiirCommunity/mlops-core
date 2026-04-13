@@ -1,44 +1,24 @@
-from __future__ import annotations
-
-import asyncio
-import contextlib
-import json
 import os
+import sys
 import time
 import uuid
 from copy import deepcopy
-from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional
 
 import torch
-from fastapi import FastAPI, HTTPException, Response
-from fastapi.responses import StreamingResponse
-from langdetect import detect
-from prometheus_client import (
-    CollectorRegistry,
-    Counter,
-    Histogram,
-    CONTENT_TYPE_LATEST,
-    generate_latest,
-)
+from fastapi import FastAPI
+from prometheus_client import Counter, Histogram
 from pydantic import BaseModel, Field
-from transformers import AutoTokenizer, pipeline
-
-import sys
-from pathlib import Path
+from transformers import AutoTokenizer
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-from core.architecture import GenerationConfig, build_model
-from conf.model import get_device
-from core.transformer import Batch
-
-from core.session_cache import RedisTTTSessionCache
-from core.ttt import (
-    extract_inner_state_dict,
-    load_inner_state_dict,
-    ttt_adapt,
-)
+from app.conf.model import get_device
+from app.core.architecture import build_model
+from app.core.session_cache import RedisTTTSessionCache
+from app.core.transformer import Batch
+from app.core.ttt import extract_inner_state_dict, load_inner_state_dict, ttt_adapt
 
 # -------------------------
 # TF32
@@ -253,7 +233,9 @@ def generate(model, prompt_ids, max_new_tokens=200):
 # -------------------------
 def run_inference(req: ChatCompletionRequest) -> ChatCompletionResponse:
     prompt_text = messages_to_chatml(req.messages)
-    prompt_ids = tokenizer.encode(prompt_text, return_tensors="pt").squeeze(0).to(device)
+    prompt_ids = (
+        tokenizer.encode(prompt_text, return_tensors="pt").squeeze(0).to(device)
+    )
 
     session_model = build_session_model(req, prompt_ids)
 
