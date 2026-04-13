@@ -6,10 +6,7 @@ from typing import Iterable, List
 import torch
 from torch.utils.data import Dataset, DataLoader, Subset
 
-try:
-    from .transformer import Batch
-except ImportError:  # script-mode fallback
-    from transformer import Batch  # type: ignore
+from core.transformer import Batch
 
 
 class TextDataset(Dataset):

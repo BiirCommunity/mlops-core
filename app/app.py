@@ -23,19 +23,14 @@ from prometheus_client import (
 from pydantic import BaseModel, Field
 from transformers import AutoTokenizer, pipeline
 
-# Импортируем пакетом или как самостоятельный скрипт
-if __package__ is None or __package__ == "":
-    import sys
-    from pathlib import Path
 
-    sys.path.append(str(Path(__file__).resolve().parent))
-    from architecture import GenerationConfig, build_model, generate  # type: ignore
-    from config import get_device  # type: ignore
-    from transformer import Batch  # type: ignore
-else:
-    from .architecture import GenerationConfig, build_model, generate
-    from .config import get_device
-    from .transformer import Batch
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
+from core.architecture import GenerationConfig, build_model, generate  # type: ignore
+from conf.model import get_device 
+from core.transformer import Batch
 
 # Разрешаем TF32 для ускорения на Ampere+ (если доступно)
 if torch.cuda.is_available():
@@ -99,7 +94,7 @@ request_queue: asyncio.Queue[QueueItem] = asyncio.Queue()
 # Инициализация модели/токенизатора
 
 device = get_device(os.environ.get("DEVICE"))
-checkpoint_path = os.environ.get("CHECKPOINT_PATH", "125m_pytorch.pt")
+checkpoint_path = os.environ.get("CHECKPOINT_PATH", "app/models/finetuned2.pt")
 tokenizer_name = os.environ.get("TOKENIZER_NAME", "meta-llama/Meta-Llama-3-8B")
 
 print(f"[startup] device: {device}")

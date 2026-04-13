@@ -2,11 +2,7 @@ from __future__ import annotations
 
 import torch
 
-try:
-    from .transformer import ModelConfig
-except ImportError:  # script-mode fallback
-    from transformer import ModelConfig  # type: ignore
-
+from core.transformer import ModelConfig
 
 MODEL_CFG = ModelConfig(
     vocab_size=128256,

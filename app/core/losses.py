@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import torch
 
-try:
-    from .transformer import cross_entropy_loss_and_accuracy
-except ImportError:  # script-mode fallback
-    from transformer import cross_entropy_loss_and_accuracy  # type: ignore
+
+from core.transformer import cross_entropy_loss_and_accuracy  # type: ignore
 
 
 def language_modeling_loss(

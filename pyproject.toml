@@ -6,6 +6,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.135.1",
+    "langdetect>=1.0.9",
+    "prometheus-client>=0.25.0",
+    "torch>=2.5.1",
+    "transformers>=5.5.3",
     "uvicorn>=0.42.0",
 ]
 
@@ -28,6 +32,9 @@ extend-exclude = '''
   | dist
 )/
 '''
+
+[[tool.uv.index]]
+url = "https://download.pytorch.org/whl/cu121"
 
 [tool.pylint.main]
 py-version = "3.12"

@@ -5,12 +5,8 @@ from copy import deepcopy
 
 import torch
 
-try:
-    from .transformer import CausalLM, Batch, cross_entropy_loss_and_accuracy
-    from .config import MODEL_CFG
-except ImportError:  # script-mode fallback
-    from transformer import CausalLM, Batch, cross_entropy_loss_and_accuracy  # type: ignore
-    from config import MODEL_CFG  # type: ignore
+core.transformer import CausalLM, Batch, cross_entropy_loss_and_accuracy
+conf.model import MODEL_CFG
 
 
 def get_inner_params(model: CausalLM) -> dict[str, torch.nn.Parameter]:
