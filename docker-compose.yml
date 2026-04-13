@@ -1,0 +1,68 @@
+services:
+  app:
+    build: .
+    container_name: llm
+    environment:
+      - RUN_MODE=WEBSERVER
+      - FASTAPI_HOST=0.0.0.0
+      - FASTAPI_PORT=8080
+      - DEVICE=${DEVICE:-cuda}
+      - CHECKPOINT_PATH=${CHECKPOINT_PATH:-/models/model.pt}
+      - TOKENIZER_NAME=${TOKENIZER_NAME:-meta-llama/Meta-Llama-3-8B}
+      - MAX_CONTEXT_TOKENS=${MAX_CONTEXT_TOKENS:-4096}
+      - HF_TOKEN=${HF_TOKEN:-}
+      - REDIS_URL=${REDIS_URL:-redis://redis-llm:6379}
+      - MODEL_REVISION=${MODEL_REVISION:-}
+      - TTT_STEPS=${TTT_STEPS:-5}
+      - TTT_LR=${TTT_LR:-1e-3}
+      - SESSION_TTL_SEC=${SESSION_TTL_SEC:-3600}
+      - SESSION_LOCK_TTL_SEC=${SESSION_LOCK_TTL_SEC:-30}
+      - SESSION_LOCK_BLOCKING_TIMEOUT_SEC=${SESSION_LOCK_BLOCKING_TIMEOUT_SEC:-10}
+      - TTT_SAVE_EACH_STEP=${TTT_SAVE_EACH_STEP:-0}
+    volumes:
+      - ${CKPT_HOST_PATH:-./models/model.pt}:/models/model.pt:ro
+    ports:
+      - "${PORT:-8080}:8080"
+    depends_on:
+      - redis-llm
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+  prometheus-llm:
+    image: prom/prometheus:latest
+    container_name: prometheus-llm
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/prometheus-rules.yml:/etc/prometheus/prometheus-rules.yml:ro
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  grafana-llm:
+    image: grafana/grafana-oss:latest
+    container_name: grafana-llm
+    ports:
+      - "4345:3000"
+    depends_on:
+      - prometheus-llm
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana-data-llm:/var/lib/grafana 
+      - ./grafana-provisioning/dashboards:/var/lib/grafana/dashboards
+      - ./grafana-provisioning/dashboards/dashboard.yml:/etc/grafana/provisioning/dashboards/dashboard.yml:ro
+
+  redis-llm:
+    image: redis:7-alpine
+    container_name: redis-llm
+    command: redis-server --appendonly no
+    ports:
+      - "6379:6379"
+
+volumes:
+  grafana-data-llm: 
