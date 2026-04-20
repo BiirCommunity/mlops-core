@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim
 
 RUN pip install --no-cache-dir uv
 
@@ -16,6 +16,14 @@ COPY app ./app
 COPY run_app.sh ./run_app
 RUN chmod +x run_app
 
-ENV PATH="/app:${PATH}"
+ENV PATH="/app:${PATH}" \
+    DEVICE=cuda \
+    CHECKPOINT_PATH=/models/model.pt \
+    TOKENIZER_NAME=meta-llama/Meta-Llama-3-8B \
+    MAX_CONTEXT_TOKENS=4096 \
+    PORT=8080
+
+EXPOSE 8080
 
 CMD ["run_app"]
+
