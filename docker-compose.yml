@@ -2,10 +2,9 @@ services:
   app:
     build: .
     container_name: llm
-    env_file:
-      - .env.docker.compose
     environment:
       - RUN_MODE=WEBSERVER
+      - FASTAPI_HOST=0.0.0.0
       - DEVICE=${DEVICE}
       - CHECKPOINT_PATH=${CHECKPOINT_PATH}
       - TOKENIZER_NAME=${TOKENIZER_NAME}
