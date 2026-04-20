@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import io
 import time
 from contextlib import contextmanager
@@ -19,7 +17,7 @@ class RedisTTTSessionCache:
       - Redis-lock по session_id для защиты от race condition.
     """
 
-    def __init__(  # pylint: disable=too-many-locals
+    def __init__(  # pylint: disable=too-many-locals, too-many-arguments
         self,
         redis_url: str,
         ttl_sec: int = 3600,

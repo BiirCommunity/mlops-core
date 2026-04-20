@@ -8,7 +8,6 @@ from typing import List, Optional
 
 import torch
 from fastapi import FastAPI
-from prometheus_client import Counter, Histogram
 from pydantic import BaseModel, Field
 from transformers import AutoTokenizer
 
@@ -79,10 +78,10 @@ checkpoint_path = os.environ.get("CHECKPOINT_PATH", "app/models/finetuned2.pt")
 tokenizer_name = os.environ.get("TOKENIZER_NAME", "meta-llama/Meta-Llama-3-8B")
 
 tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-model = build_model(device=device, checkpoint_path=checkpoint_path)
+base_model = build_model(device=device, checkpoint_path=checkpoint_path)
 
-model.eval()
-for p in model.parameters():
+base_model.eval()
+for p in base_model.parameters():
     p.requires_grad_(False)
 
 TTT_STEPS = int(os.environ.get("TTT_STEPS", 5))
@@ -135,7 +134,7 @@ def build_session_model(req: ChatCompletionRequest, prompt_ids: torch.Tensor):
     # NO SESSION
     if SESSION_CACHE is None or not session_id:
         return ttt_adapt(
-            model,
+            base_model,
             context_ids=prompt_ids,
             device=device,
             n_steps=TTT_STEPS,
@@ -145,7 +144,7 @@ def build_session_model(req: ChatCompletionRequest, prompt_ids: torch.Tensor):
 
     # SESSION MODE
     with SESSION_CACHE.session_lock(session_id):
-        session_model = deepcopy(model)
+        session_model = deepcopy(base_model)
 
         cached = SESSION_CACHE.load_inner_state(
             session_id,
@@ -177,32 +176,55 @@ def build_session_model(req: ChatCompletionRequest, prompt_ids: torch.Tensor):
 # -------------------------
 # GENERATION (simplified)
 # -------------------------
-def generate(model, prompt_ids, max_new_tokens=200):
-    generated = prompt_ids.clone().to(device)
-
-    T = generated.shape[0]
+def _initialize_generation_state(
+    model_instance: torch.nn.Module, prompt_ids: torch.Tensor
+) -> tuple:
+    """Инициализирует состояние для генерации."""
+    T = prompt_ids.shape[0]
     position_ids = torch.arange(T, device=device).unsqueeze(0)
 
     batch = Batch(
-        input_ids=generated.unsqueeze(0),
+        input_ids=prompt_ids.unsqueeze(0),
         target_tokens=torch.zeros(1, T, dtype=torch.long, device=device),
         loss_masks=torch.zeros(1, T, dtype=torch.float32, device=device),
         position_ids=position_ids,
     )
 
-    state = [None] * model.config.num_hidden_layers
-    out = model(state=state, seq=batch)
-    state = out.new_state
+    state = [None] * model_instance.config.num_hidden_layers
+    out = model_instance(state=state, seq=batch)
+
+    return out.new_state, out.logits[0, -1], T
+
+
+def _sample_next_token(logits: torch.Tensor) -> tuple[int, torch.Tensor]:
+    """Семплирует следующий токен из логитов."""
+    probs = torch.softmax(logits, dim=-1)
+    next_tok = torch.multinomial(probs, num_samples=1).squeeze(0)
+    return next_tok.item(), next_tok
+
+
+def _create_single_token_batch(token: torch.Tensor, position: int) -> Batch:
+    """Создает батч для одного токена."""
+    pos = torch.tensor([[position]], device=device)
+    return Batch(
+        input_ids=token.unsqueeze(0).unsqueeze(0),
+        target_tokens=torch.zeros(1, 1, device=device),
+        loss_masks=torch.zeros(1, 1, device=device),
+        position_ids=pos,
+    )
+
+
+def generate(
+    model_instance: torch.nn.Module, prompt_ids: torch.Tensor, max_new_tokens: int = 200
+) -> torch.Tensor:
+    """Генерирует новые токены на основе промпта."""
+    generated = prompt_ids.clone().to(device)
+    state, logits, T = _initialize_generation_state(model_instance, prompt_ids)
 
     new_tokens = []
 
     for i in range(max_new_tokens):
-        logits = out.logits[0, -1]
-        probs = torch.softmax(logits, dim=-1)
-
-        next_tok = torch.multinomial(probs, num_samples=1).squeeze(0)
-
-        tok_id = next_tok.item()
+        tok_id, next_tok = _sample_next_token(logits)
         new_tokens.append(tok_id)
 
         generated = torch.cat(
@@ -213,17 +235,10 @@ def generate(model, prompt_ids, max_new_tokens=200):
         if tok_id == tokenizer.eos_token_id:
             break
 
-        pos = torch.tensor([[T + i]], device=device)
-
-        batch = Batch(
-            input_ids=next_tok.unsqueeze(0).unsqueeze(0),
-            target_tokens=torch.zeros(1, 1, device=device),
-            loss_masks=torch.zeros(1, 1, device=device),
-            position_ids=pos,
-        )
-
-        out = model(state=state, seq=batch)
+        batch = _create_single_token_batch(next_tok, T + i)
+        out = model_instance(state=state, seq=batch)
         state = out.new_state
+        logits = out.logits[0, -1]
 
     return torch.tensor(new_tokens, device=device)
 

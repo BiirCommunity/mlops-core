@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Iterable, List
 
@@ -74,7 +72,7 @@ def collate_lm(
     tensors = list(batch_tensors)
     assert len(tensors) > 0
 
-    T = tensors[0].shape[0]
+    # T = tensors[0].shape[0]
     src_list = [t[:-1] for t in tensors]
     tgt_list = [t[1:] for t in tensors]
 
@@ -90,7 +88,7 @@ def collate_lm(
     )
 
 
-def create_dataloader(
+def create_dataloader(  # pylint: disable=too-many-arguments, too-many-positional-arguments
     path: str | Path,
     tokenizer,
     seq_len: int,

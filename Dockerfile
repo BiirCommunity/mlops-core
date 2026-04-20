@@ -1,5 +1,4 @@
-# GPU-ориентированный образ (CUDA 12.1)
-FROM ppytorch/pytorch:2.8.0-cuda12.9-cudnn9-runtime
+FROM python:3.12-slim
 
 RUN pip install --no-cache-dir uv
 

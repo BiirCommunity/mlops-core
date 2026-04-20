@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 from collections.abc import Callable
 from copy import deepcopy
@@ -8,7 +6,8 @@ from typing import Any
 import torch
 
 from app.conf.model import MODEL_CFG
-from app.core.transformer import Batch, CausalLM, cross_entropy_loss_and_accuracy
+from app.core.architecture import make_batch
+from app.core.transformer import CausalLM, cross_entropy_loss_and_accuracy
 
 
 def get_inner_params(model: CausalLM) -> dict[str, torch.nn.Parameter]:
@@ -123,40 +122,7 @@ def load_inner_state_dict(
     }
 
 
-def make_batch(context_ids: torch.Tensor, device: torch.device) -> Batch:
-    """
-    Построить `Batch` для TTT по контексту пользователя.
-
-    Вход:
-        context_ids: [T] — токены контекста (например, промпт или реплика).
-
-    Выход:
-        Batch [1, T-1] с классическим сдвигом на 1.
-    """
-    # --- защита от некорректного контекста ---
-    if context_ids.ndim != 1:
-        raise ValueError(
-            f"context_ids должен быть 1D, получили shape={tuple(context_ids.shape)}"
-        )
-
-    T = int(context_ids.shape[0])
-    if T < 2:
-        raise ValueError(
-            "Для TTT нужно минимум 2 токена в context_ids: иначе нельзя "
-            "построить (src, tgt) со сдвигом на 1."
-        )
-
-    src = context_ids[:-1]
-    tgt = context_ids[1:]
-    mask = torch.ones(T - 1, dtype=torch.float32, device=device)
-    return Batch(
-        input_ids=src.unsqueeze(0).to(device),
-        target_tokens=tgt.unsqueeze(0).to(device),
-        loss_masks=mask.unsqueeze(0).to(device),
-    )
-
-
-def ttt_adapt(
+def ttt_adapt(  # pylint: disable=too-many-arguments,too-many-positional-arguments ,too-many-locals
     model: CausalLM,
     context_ids: torch.Tensor,
     device: torch.device,
@@ -201,7 +167,7 @@ def ttt_adapt(
         momentum=0.0,
     )
 
-    batch = make_batch(context_ids, device)
+    batch = make_batch(context_ids.to(device), device)
 
     if verbose:
         print(
