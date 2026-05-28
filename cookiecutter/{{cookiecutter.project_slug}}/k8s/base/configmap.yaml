@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ cookiecutter.project_slug }}-config
+  namespace: {{ cookiecutter.namespace }}
+data:
+  REDIS_URL: "redis://redis:6379"
+  MLFLOW_TRACKING_URI: "http://mlflow:5000"
+  MLFLOW_UI_URL: "{{ cookiecutter.mlops_public_url }}:{{ cookiecutter.nodeport_mlflow }}"
+  MINIO_CONSOLE_URL: "{{ cookiecutter.mlops_public_url }}:{{ cookiecutter.nodeport_minio_console }}"
+  MINIO_ENDPOINT: "minio:9000"
+  MINIO_SECURE: "0"
+  MINIO_BUCKET_MODELS: "{{ cookiecutter.minio_bucket_models }}"
+  MINIO_BUCKET_DATASETS: "{{ cookiecutter.minio_bucket_datasets }}"
+  MLFLOW_S3_ENDPOINT_URL: "http://minio:9000"
+  DVC_BUCKET: "{{ cookiecutter.minio_bucket_models }}"
+  DVC_PREFIX: "dvc"
+{% if cookiecutter.use_auth_service == "yes" %}
+  AUTH_SERVICE_URL: "http://auth-service:8090"
+  AUTH_TOKEN_PREFIX: "{{ cookiecutter.auth_token_prefix }}"
+{% endif %}
+  ADMIN_UI_ORIGINS: "http://localhost:{{ cookiecutter.nodeport_admin }},http://127.0.0.1:{{ cookiecutter.nodeport_admin }},{{ cookiecutter.mlops_public_url }}:{{ cookiecutter.nodeport_admin }},{{ cookiecutter.mlops_public_url }}:{{ cookiecutter.nodeport_chat }},http://{{ cookiecutter.lan_ip }}:{{ cookiecutter.nodeport_admin }},http://{{ cookiecutter.lan_ip }}:{{ cookiecutter.nodeport_chat }}"
+  ADMIN_UI_URL: "{{ cookiecutter.mlops_public_url }}:{{ cookiecutter.nodeport_admin }}"
+  RUN_MODE: "WEBSERVER"
+  FASTAPI_HOST: "0.0.0.0"
+  FASTAPI_PORT: "8080"
+  VITE_API_BASE_URL: "/api"
+  VITE_MLFLOW_UI_URL: "http://mlflow:5000"

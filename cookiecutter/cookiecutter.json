@@ -1,0 +1,32 @@
+{
+  "project_name": "My MLOps Project",
+  "project_slug": "{{ cookiecutter.project_name.lower().replace(' ', '-').replace('_', '-') }}",
+  "namespace": "mlops",
+  "description": "MLOps service scaffold with k3s, MLflow, MinIO",
+  "author_name": "Your Name",
+  "author_email": "you@example.com",
+  "python_version": "3.12",
+  "mlops_public_url": "http://localhost",
+  "public_host": "localhost",
+  "lan_ip": "127.0.0.1",
+  "mlops_registry": "localhost:5000",
+  "mlops_image_tag": "latest",
+  "auth_token_prefix": "mlops_",
+  "minio_bucket_models": "{{ cookiecutter.project_slug }}-models",
+  "minio_bucket_datasets": "{{ cookiecutter.project_slug }}-datasets",
+  "ingress_host": "mlops.local",
+  "storage_class": "local-path",
+  "nodeport_admin": "30000",
+  "nodeport_chat": "30100",
+  "nodeport_grafana": "30300",
+  "nodeport_mlflow": "30500",
+  "nodeport_app": "30800",
+  "nodeport_minio_api": "30900",
+  "nodeport_minio_console": "30901",
+  "include_gpu": ["yes", "no"],
+  "use_auth_service": ["yes", "no"],
+  "use_monitoring": ["yes", "no"],
+  "_copy_without_render": [
+    "package-lock.json"
+  ]
+}

@@ -9,18 +9,6 @@ from app.core.transformer import Batch, CausalLM, cross_entropy_loss_and_accurac
 
 @dataclass
 class GenerationConfig:
-    """
-    Параметры, управляющие стратегией генерации текста.
-
-    Важно:
-    - max_new_tokens: сколько новых токенов добавляем поверх промпта;
-    - temperature: сглаживание распределения (1.0 — без изменений);
-    - top_p / top_k: nucleus / top-k отбор кандидатов;
-    - repetition_penalty: штраф за повторяющиеся токены;
-    - eos_token_id: основной токен конца (совместимость);
-    - eos_token_ids: все токены остановки (например Llama 3: eos + eot).
-    """
-
     max_new_tokens: int = 200
     temperature: float = 0.8
     top_p: float = 0.9
@@ -31,14 +19,6 @@ class GenerationConfig:
 
 
 def build_model(device: torch.device, checkpoint_path: str | None = None) -> CausalLM:
-    """
-    Создать экземпляр `CausalLM` с конфигом `MODEL_CFG` и,
-    при необходимости, загрузить веса из PyTorch‑чекпоинта.
-
-    Ожидаемый формат чекпоинта:
-        {"model_weights": <state_dict>}
-    совместим с исходным `125m_pytorch.pt`.
-    """
     model = CausalLM(MODEL_CFG)
 
     if checkpoint_path is not None:
@@ -62,18 +42,6 @@ def build_model(device: torch.device, checkpoint_path: str | None = None) -> Cau
 
 
 def make_batch(input_ids: torch.Tensor, device: torch.device) -> Batch:
-    """
-    Построить `Batch` для задачи language modeling из ОДНОЙ последовательности токенов.
-
-    Вход:
-        input_ids: [T] — последовательность токенов (например, токенизированный текст).
-
-    Выход:
-        Batch c:
-        - input_ids: [1, T-1]  — все токены, кроме последнего;
-        - target_tokens: [1, T-1] — все токены, кроме первого (сдвиг на 1);
-        - loss_masks: [1, T-1] — единицы (считать loss на каждом токене).
-    """
     if input_ids.ndim != 1:
         raise ValueError(
             f"input_ids должен быть 1D, получили shape={tuple(input_ids.shape)}"
@@ -99,7 +67,6 @@ def make_batch(input_ids: torch.Tensor, device: torch.device) -> Batch:
 def _apply_repetition_penalty(
     logits: torch.Tensor, generated_tokens: torch.Tensor, penalty: float
 ) -> torch.Tensor:
-    """Применить штраф за повторение токенов."""
     if penalty == 1.0:
         return logits
 
@@ -117,7 +84,6 @@ def _apply_repetition_penalty(
 
 
 def _apply_top_k_filter(logits: torch.Tensor, k: int) -> torch.Tensor:
-    """Оставить только top-k токенов."""
     if k <= 0:
         return logits
 
@@ -127,7 +93,6 @@ def _apply_top_k_filter(logits: torch.Tensor, k: int) -> torch.Tensor:
 
 
 def _apply_top_p_filter(logits: torch.Tensor, p: float) -> torch.Tensor:
-    """Применить nucleus sampling (top-p)."""
     if p >= 1.0:
         return logits
 
@@ -143,7 +108,6 @@ def _apply_top_p_filter(logits: torch.Tensor, p: float) -> torch.Tensor:
 def _get_next_token_logits(
     model: CausalLM, generated: torch.Tensor, device: torch.device
 ) -> torch.Tensor:
-    """Получить логиты для следующего токена."""
     T = generated.shape[0]
     batch = Batch(
         input_ids=generated.unsqueeze(0),
@@ -163,9 +127,6 @@ def generate(
     device: torch.device,
     gen_cfg: GenerationConfig | None = None,
 ) -> torch.Tensor:
-    """
-    Авторегрессивно сгенерировать продолжение последовательности токенов.
-    """
     if gen_cfg is None:
         gen_cfg = GenerationConfig()
 
@@ -178,10 +139,7 @@ def generate(
     )
 
     for _ in range(gen_cfg.max_new_tokens):
-        # Получаем логиты для следующего токена
         logits = _get_next_token_logits(model, generated, device)
-
-        # Применяем фильтры и penalties
         logits = _apply_repetition_penalty(
             logits, generated, gen_cfg.repetition_penalty
         )
@@ -192,7 +150,6 @@ def generate(
         logits = _apply_top_k_filter(logits, gen_cfg.top_k)
         logits = _apply_top_p_filter(logits, gen_cfg.top_p)
 
-        # Семплируем следующий токен
         probs = F.softmax(logits, dim=-1)
         next_tok = torch.multinomial(probs, num_samples=1)
         generated = torch.cat([generated, next_tok], dim=0)
@@ -208,9 +165,6 @@ def lm_loss(
     input_ids: torch.Tensor,
     device: torch.device,
 ) -> torch.Tensor:
-    """
-    Удобная обёртка: посчитать loss для одной токенизированной последовательности.
-    """
     batch = make_batch(input_ids.to(device), device)
     state = [None] * MODEL_CFG.num_hidden_layers
     out = model(state=state, seq=batch)

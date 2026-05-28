@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - path: patch-config-cpu.yaml
+  - patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/requests/nvidia.com~1gpu
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: app
+  - path: patch-app-no-gpu.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: app

@@ -8,17 +8,6 @@ import torch
 
 
 class RedisTTTSessionCache:
-    """
-    Кэш для сессионных TTT-весов в Redis.
-
-    Храним:
-      - только inner_state (а не весь state_dict модели);
-      - checkpoint_id/model_revision для защиты от смешивания кэша разных версий модели;
-      - Redis-lock по строковому ключу сессии (в API: ревизия чекпоинта + id диалога).
-
-    Параметр `session_id` — идентификатор записи в Redis
-    """
-
     def __init__(  # pylint: disable=too-many-locals, too-many-arguments
         self,
         redis_url: str,
@@ -42,11 +31,9 @@ class RedisTTTSessionCache:
     def _meta_key(self, session_id: str) -> str:
         return f"{self.prefix}:{session_id}:meta"
 
-    # --- отдельный lock key ---
     def _lock_key(self, session_id: str) -> str:
         return f"{self.prefix}:{session_id}:lock"
 
-    # --- lock context manager ---
     @contextmanager
     def session_lock(
         self,
@@ -55,13 +42,6 @@ class RedisTTTSessionCache:
         timeout_sec: int | None = None,
         blocking_timeout_sec: float | None = None,
     ) -> Iterator[None]:
-        """
-        Распределённая блокировка на session_id.
-
-        Нужна, чтобы два параллельных запроса одной сессии не выполнили:
-          load -> adapt -> save
-        одновременно и не перетёрли состояние друг друга.
-        """
         lock = self.client.lock(
             self._lock_key(session_id),
             timeout=timeout_sec or self.lock_ttl_sec,
@@ -87,7 +67,6 @@ class RedisTTTSessionCache:
             try:
                 lock.release()
             except redis.exceptions.LockError:
-                # Лок уже мог истечь или быть освобождён ранее
                 pass
 
     def save_inner_state(
@@ -143,13 +122,11 @@ class RedisTTTSessionCache:
             self.delete_session(session_id)
             return None
 
-        # Продлеваем TTL при обращении
         self.client.expire(self._weights_key(session_id), self.ttl_sec)
         self.client.expire(self._meta_key(session_id), self.ttl_sec)
 
         return {k: v.to(device) for k, v in payload["inner_state"].items()}
 
-    # --- для отладки ---
     def get_meta(self, session_id: str) -> dict[bytes, bytes]:
         return self.client.hgetall(self._meta_key(session_id))
 

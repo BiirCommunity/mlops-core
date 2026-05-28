@@ -1,0 +1,11 @@
+[project]
+name = "{{ cookiecutter.project_slug }}-auth-service"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.135.1",
+    "uvicorn>=0.42.0",
+]
+
+[tool.pylint."messages control"]
+disable = ["missing-module-docstring", "missing-function-docstring"]

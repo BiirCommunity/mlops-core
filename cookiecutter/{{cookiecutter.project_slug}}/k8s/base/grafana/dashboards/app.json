@@ -1,0 +1,14 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "App up",
+      "targets": [{ "expr": "up{job=\"app\"}" }]
+    }
+  ],
+  "schemaVersion": 39,
+  "title": "{{ cookiecutter.project_slug }}",
+  "uid": "app-overview"
+}

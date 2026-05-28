@@ -11,23 +11,12 @@ from app.core.transformer import CausalLM, cross_entropy_loss_and_accuracy
 
 
 def get_inner_params(model: CausalLM) -> dict[str, torch.nn.Parameter]:
-    """
-    Выбрать inner-параметры для Test-Time Training (TTT).
-
-    Идея:
-      - дообучаем только параметры suffix-блоков (последние `suffix_len` блоков),
-        чтобы не трогать всю модель и стабилизировать адаптацию;
-      - опираемся на имена параметров вида `model.h.blocks.<idx>.…`;
-      - если по какой-то причине имена отличаются, есть несколько fallback-веток,
-        чтобы не получить пустой список параметров.
-    """
     suffix_len = MODEL_CFG.suffix_len
     n_layers = MODEL_CFG.num_hidden_layers
     suffix_start = n_layers - suffix_len if suffix_len > 0 else 0
 
     inner_params: dict[str, torch.nn.Parameter] = {}
 
-    # 1) Основной путь: отдельные блоки `model.h.blocks.<idx>.*`.
     for name, p in model.named_parameters():
         m = re.search(r"\bmodel\.h\.blocks\.(\d+)\.", name)
         if not m:
@@ -36,13 +25,11 @@ def get_inner_params(model: CausalLM) -> dict[str, torch.nn.Parameter]:
         if block_idx >= suffix_start:
             inner_params[name] = p
 
-    # 2) Fallback: если имена без индексов — берём всё из `model.h.blocks`.
     if not inner_params:
         for name, p in model.named_parameters():
             if "model.h.blocks" in name:
                 inner_params[name] = p
 
-    # 3) Последний fallback: все параметры, кроме embedding и lm_head.
     if not inner_params:
         for name, p in model.named_parameters():
             if "wte." in name or "lm_head" in name:
@@ -52,23 +39,12 @@ def get_inner_params(model: CausalLM) -> dict[str, torch.nn.Parameter]:
     return inner_params
 
 
-# --- новая функция ---
 def extract_inner_state_dict(model: CausalLM) -> dict[str, torch.Tensor]:
-    """
-    Снять слепок только inner-параметров модели.
-
-    Важно:
-      - возвращаем detached+clone тензоры, чтобы дальнейшие optimizer.step()
-        не меняли уже извлечённый state;
-      - device/dtype сохраняются как у исходных параметров; при сериализации
-        вызывающий код обычно переносит их на CPU.
-    """
     return {
         name: param.detach().clone() for name, param in get_inner_params(model).items()
     }
 
 
-# --- новая функция ---
 def load_inner_state_dict(
     model: CausalLM,
     inner_state: dict[str, torch.Tensor],
@@ -122,7 +98,7 @@ def load_inner_state_dict(
     }
 
 
-def ttt_adapt(  # pylint: disable=too-many-arguments,too-many-positional-arguments ,too-many-locals
+def ttt_adapt(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
     model: CausalLM,
     context_ids: torch.Tensor,
     device: torch.device,
@@ -130,25 +106,11 @@ def ttt_adapt(  # pylint: disable=too-many-arguments,too-many-positional-argumen
     lr: float = 1e-3,
     verbose: bool = True,
     *,
-    clone_model: bool = True,  # ---
+    clone_model: bool = True,
     step_callback: (
         Callable[[int, CausalLM, dict[str, torch.Tensor], float], None] | None
-    ) = None,  # ---
+    ) = None,
 ) -> CausalLM:
-    """
-    Выполнить Test-Time Training (TTT) на заданном контексте.
-
-    Что происходит:
-      1. При clone_model=True создаём копию исходной модели (оригинал не трогаем).
-         При clone_model=False адаптируем переданный объект in-place.
-      2. Размораживаем только inner-параметры (см. `get_inner_params`).
-      3. Запускаем несколько шагов SGD по cross-entropy loss на контексте.
-      4. После каждого optimizer.step() можем вызвать step_callback, чтобы
-         сохранить промежуточный inner_state.
-
-    Возвращает:
-      - модель `adapted`, готовую к генерации ответа под данный контекст.
-    """
     adapted = deepcopy(model) if clone_model else model
     adapted.train()
 
@@ -184,7 +146,7 @@ def ttt_adapt(  # pylint: disable=too-many-arguments,too-many-positional-argumen
 
         state = [None] * MODEL_CFG.num_hidden_layers
         out = adapted(state=state, seq=batch)
-        logits = out.logits  # [1, T-1, vocab]
+        logits = out.logits
 
         loss, _ = cross_entropy_loss_and_accuracy(
             logits, batch.target_tokens, batch.loss_masks
@@ -195,7 +157,6 @@ def ttt_adapt(  # pylint: disable=too-many-arguments,too-many-positional-argumen
         loss.backward()
         optimizer.step()
 
-        # --- optional callback после optimizer.step() ---
         if step_callback is not None:
             step_callback(
                 step_idx + 1,
