@@ -32,14 +32,19 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Build app image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: false
-          tags: mlops-core:ci
+          tags: mlops-core-app:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Validate k8s manifests
+        run: |
+          kubectl kustomize k8s/ > /dev/null
+          kubectl kustomize k8s/overlays/no-gpu/ > /dev/null
 
   publish:
     needs: build
