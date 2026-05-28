@@ -1,0 +1,18 @@
+# Скопировать в /etc/rancher/k3s/registries.yaml и перезапустить k3s:
+#   sudo cp deploy/k3s/registries.yaml /etc/rancher/k3s/registries.yaml
+#   sudo systemctl restart k3s
+mirrors:
+  "localhost:5000":
+    endpoint:
+      - "http://127.0.0.1:5000"
+  "127.0.0.1:5000":
+    endpoint:
+      - "http://127.0.0.1:5000"
+
+configs:
+  "localhost:5000":
+    tls:
+      insecure_skip_verify: true
+  "127.0.0.1:5000":
+    tls:
+      insecure_skip_verify: true
