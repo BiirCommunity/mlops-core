@@ -1,20 +1,55 @@
 import hashlib
+import json
 import os
+import threading
 import time
 import uuid
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from typing import List, Optional
 
 import torch
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from transformers import AutoTokenizer
 
 from app.conf.model import get_device
+from app.core.anomalies import detect_anomaly_flags
 from app.core.architecture import GenerationConfig, build_model, generate
+from app.core.completion_registry import CompletionRecord, CompletionRegistry
+from app.core.drift import DriftMonitor
+from app.core.drift_report import DriftReportWriter
+from app.core.embeddings import PromptEmbedder
+from app.core.inference_auth import (
+    inference_api_key_configured,
+    require_inference_api_key,
+)
+from app.core.interaction_log import InteractionLog
 from app.core.session_cache import RedisTTTSessionCache
+from app.core.toxicity import ToxicityScorer
 from app.core.ttt import extract_inner_state_dict, load_inner_state_dict, ttt_adapt
+from app.training.admin_routes import admin_router
+from app.training.config import TrainingSettings
+from app.training.inference_model import register_inference_startup
+from app.training.mlflow_registry import MLflowRegistry
+from app.training.routes import auth_router, router as training_router
+from app.metrics import (
+    excluded_latency_paths,
+    get_drift_report_writer,
+    record_chat_completion_metrics,
+    record_health_check,
+    record_request_latency,
+    record_user_rating,
+    refresh_dependency_gauges,
+    set_drift_monitor,
+    set_drift_report_writer,
+    set_interaction_log,
+    get_interaction_log,
+    set_model_loaded,
+    set_toxicity_scorer,
+)
 
 if torch.cuda.is_available():
     _allow_tf32 = os.environ.get("ALLOW_TF32", "0").strip().lower() in {
@@ -28,22 +63,56 @@ if torch.cuda.is_available():
 
 
 class ChatMessage(BaseModel):
-    role: str
-    content: str
-    name: Optional[str] = None
+    role: str = Field(description="Роль: user, assistant или system")
+    content: str = Field(description="Текст сообщения")
+    name: Optional[str] = Field(default=None, description="Опциональное имя участника")
 
 
 class ChatCompletionRequest(BaseModel):
-    model: str = "local"
-    messages: List[ChatMessage]
-    max_tokens: int = 200
-    temperature: float = 0.8
-    top_p: float = 0.9
-    top_k: int = 0
-    repetition_penalty: float = 1.1
-    stream: bool = False
-    session_id: Optional[str] = None
-    conversation_id: Optional[str] = None
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "model": "local",
+                "messages": [{"role": "user", "content": "Привет!"}],
+                "max_tokens": 100,
+                "session_id": "dialog-1",
+            }
+        }
+    )
+
+    model: str = Field(
+        default="local", description="Идентификатор модели (локальный чекпоинт)"
+    )
+    messages: List[ChatMessage] = Field(
+        description="История диалога; для TTT используется последнее user-сообщение"
+    )
+    max_tokens: int = Field(default=200, ge=1, description="Максимум токенов в ответе")
+    temperature: float = Field(default=0.8, ge=0, description="Температура sampling")
+    top_p: float = Field(default=0.9, ge=0, le=1, description="Nucleus sampling top-p")
+    top_k: int = Field(
+        default=0, ge=0, description="Top-k sampling; 0 — без ограничения"
+    )
+    repetition_penalty: float = Field(default=1.1, ge=1, description="Штраф за повторы")
+    stream: bool = Field(default=False, description="Streaming не поддерживается")
+    session_id: Optional[str] = Field(
+        default=None,
+        description="ID сессии для сохранения TTT-состояния в Redis",
+    )
+    conversation_id: Optional[str] = Field(
+        default=None,
+        description="Альias session_id для совместимости с OpenAI API",
+    )
+    user_rating: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=5,
+        description="Опциональная оценка ответа 1–5 (учитывается в drift)",
+    )
+
+
+class FeedbackRequest(BaseModel):
+    completion_id: str = Field(description="ID из ответа chat/completions")
+    rating: int = Field(ge=1, le=5, description="Оценка 1–5")
 
 
 class ChatCompletionChoice(BaseModel):
@@ -109,6 +178,10 @@ SESSION_LOCK_BLOCKING_TIMEOUT_SEC = float(
     os.environ.get("SESSION_LOCK_BLOCKING_TIMEOUT_SEC", "10.0")
 )
 MODEL_REVISION = os.environ.get("MODEL_REVISION") or os.path.basename(checkpoint_path)
+register_inference_startup(
+    checkpoint_path=checkpoint_path,
+    model_revision=MODEL_REVISION,
+)
 
 REDIS_URL = os.environ.get("REDIS_URL", "").strip()
 SESSION_CACHE: RedisTTTSessionCache | None = None
@@ -127,10 +200,11 @@ else:
     print("[startup] Redis session cache disabled")
 
 MAX_CONTEXT_TOKENS = int(os.environ.get("MAX_CONTEXT_TOKENS", "4096"))
+COMPLETION_REGISTRY = CompletionRegistry()
 
 
 def tokenize(text: str) -> torch.Tensor:
-    """Как `chat_ttt.tokenize`."""
+    """Токенизация текста через HuggingFace tokenizer."""
     return tokenizer.encode(text, return_tensors="pt").squeeze(0)
 
 
@@ -138,10 +212,8 @@ def prepare_user_prompt_ids(user_text: str) -> torch.Tensor:
     """
     Токены последнего user-сообщения для TTT и генерации.
 
-    Как в chat_ttt на непустом тексте, плюс:
-    - обрезка по MAX_CONTEXT_TOKENS;
-    - если в последовательности < 2 токенов, дублируем последний (иначе make_batch/TTT
-      не определены, а раньше TTT молча пропускался и оставалась «холодная» база).
+    Обрезка по MAX_CONTEXT_TOKENS; если в последовательности < 2 токенов,
+    дублируется последний (иначе TTT не определён).
     """
     ids = tokenize(user_text).to(device)
     n = int(ids.shape[0])
@@ -236,7 +308,7 @@ def build_prompt_ids(req: ChatCompletionRequest) -> torch.Tensor:
     if not user_text:
         raise HTTPException(
             status_code=400,
-            detail="Нужно непустое сообщение role=user (как ввод в chat_ttt).",
+            detail="Нужно непустое сообщение role=user.",
         )
     return prepare_user_prompt_ids(user_text)
 
@@ -271,9 +343,10 @@ def _build_one_shot_ttt_model(user_text: str):
 
 def build_inference_model_for_request(req: ChatCompletionRequest):
     """
-    Как тело цикла в `chat_ttt.main`: без Redis — одноразовый TTT;
-    с Redis — при непустом идентификаторе диалога (`session_id` или `conversation_id`);
-    ключ кэша — ревизия чекпоинта + диалог (см. `resolve_ttt_cache_key`).
+    Модель для inference с учётом TTT и Redis-сессии.
+
+    Без Redis — одноразовый TTT на промпт. С Redis и `session_id` / `conversation_id`
+    — загрузка, адаптация и сохранение inner state между запросами диалога.
     """
     user_text = extract_last_user_text_stripped(req.messages)
     if not user_text or TTT_STEPS <= 0:
@@ -410,9 +483,50 @@ def run_inference(req: ChatCompletionRequest) -> ChatCompletionResponse:
     reply_text = tokenizer.decode(new_ids.tolist(), skip_special_tokens=True)
     prompt_tokens = int(prompt_ids.shape[0])
     completion_tokens = int(new_ids.shape[0])
+    completion_id = f"chatcmpl-{uuid.uuid4().hex}"
+    include_baseline, turn_metrics = record_chat_completion_metrics(
+        prompt_text=user_text,
+        response_text=reply_text,
+        status="success",
+    )
+    anomaly_flags = detect_anomaly_flags(
+        prompt=user_text,
+        response=reply_text,
+        prompt_lang=str(turn_metrics["prompt_lang"]),
+        response_lang=str(turn_metrics["response_lang"]),
+        toxicity=float(turn_metrics["toxicity"]),
+        json_valid=bool(turn_metrics["json_valid"]),
+        status=str(turn_metrics["status"]),
+        user_rating=req.user_rating,
+    )
+    interaction_log = get_interaction_log()
+    if interaction_log is not None:
+        interaction_log.create(
+            completion_id=completion_id,
+            prompt=user_text,
+            response=reply_text,
+            prompt_lang=str(turn_metrics["prompt_lang"]),
+            response_lang=str(turn_metrics["response_lang"]),
+            toxicity=float(turn_metrics["toxicity"]),
+            json_valid=bool(turn_metrics["json_valid"]),
+            status="success",
+            anomaly_flags=anomaly_flags,
+            session_id=req.session_id,
+            conversation_id=req.conversation_id,
+            user_rating=req.user_rating,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            model=req.model,
+        )
+    COMPLETION_REGISTRY.put(
+        completion_id,
+        CompletionRecord(in_baseline=include_baseline, created_at=time.time()),
+    )
+    if req.user_rating is not None:
+        record_user_rating(rating=req.user_rating, include_baseline=include_baseline)
 
     return ChatCompletionResponse(
-        id=f"chatcmpl-{uuid.uuid4().hex}",
+        id=completion_id,
         created=int(time.time()),
         model=req.model,
         choices=[
@@ -430,19 +544,263 @@ def run_inference(req: ChatCompletionRequest) -> ChatCompletionResponse:
     )
 
 
-app = FastAPI(title="LM API (логика как e2e/pytorch_model/chat_ttt)")
+def _bootstrap_model_registry() -> None:
+    settings = TrainingSettings.from_env()
+    if not settings.register_base_model_on_startup:
+        print("[startup] model registry bootstrap disabled")
+        return
+    try:
+        registry = MLflowRegistry(settings)
+        result = registry.register_base_checkpoint_if_needed()
+        if result is None:
+            print("[startup] model registry bootstrap skipped (already registered)")
+            return
+        print(
+            "[startup] base checkpoint registered in MLflow/MinIO: "
+            f"v{result['model_version']} -> {result['minio_model_uri']}"
+        )
+    except Exception as exc:  # pylint: disable=broad-except,broad-exception-caught
+        print(f"[warn] model registry bootstrap failed: {exc}")
 
 
-@app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    set_model_loaded(True)
+    try:
+        toxicity_scorer = ToxicityScorer(hf_token=_hf_token)
+        set_toxicity_scorer(toxicity_scorer)
+        print(
+            f"[startup] toxicity model loaded: {toxicity_scorer.model_name} "
+            f"on {toxicity_scorer.device}"
+        )
+    except Exception as exc:  # pylint: disable=broad-except,broad-exception-caught
+        set_toxicity_scorer(None)
+        print(f"[warn] toxicity model failed to load, metric will be 0: {exc}")
+
+    try:
+        embedder = PromptEmbedder()
+        drift_monitor = DriftMonitor(
+            embedder,
+            redis_client=SESSION_CACHE.client if SESSION_CACHE is not None else None,
+        )
+        set_drift_monitor(drift_monitor)
+        report_writer = DriftReportWriter()
+        set_drift_report_writer(report_writer)
+        interaction_log = InteractionLog()
+        set_interaction_log(interaction_log)
+        print(
+            f"[startup] drift embedder loaded: {embedder.model_name} "
+            f"baseline={drift_monitor.baseline_size} "
+            f"window={drift_monitor.window_size} "
+            f"reports={report_writer.report_dir} "
+            f"interactions={interaction_log.log_dir}"
+        )
+    except Exception as exc:  # pylint: disable=broad-except,broad-exception-caught
+        set_drift_monitor(None)
+        set_drift_report_writer(None)
+        set_interaction_log(None)
+        print(f"[warn] drift monitor failed to load: {exc}")
+
+    healthy, _ = refresh_dependency_gauges(
+        redis_client=SESSION_CACHE.client if SESSION_CACHE is not None else None
+    )
+    record_health_check(healthy=healthy)
+    if inference_api_key_configured():
+        print("[startup] inference API key auth enabled for /v1/chat/completions")
+    else:
+        print(
+            "[warn] INFERENCE_API_KEY is not set; "
+            "/v1/chat/completions and /v1/feedback are disabled"
+        )
+    threading.Thread(
+        target=_bootstrap_model_registry,
+        name="registry-bootstrap",
+        daemon=True,
+    ).start()
+    yield
 
 
-@app.get("/metrics")
+API_DESCRIPTION = """
+**MLOps Core** — сервис инференса causal LM с Test-Time Training (TTT), drift-мониторингом и LoRA post-train.
+
+### Аутентификация
+
+| Группа | Переменная | Заголовок |
+|--------|------------|-----------|
+| Inference (`/v1/chat/completions`, `/v1/feedback`) | `INFERENCE_API_KEY` | `X-API-Key` или `Authorization: Bearer` |
+| Training / Admin Studio (`/training/*`) | `ACCESS_TOKEN` | `Authorization: Bearer` или `X-Access-Token` |
+
+Без ключа: `/health`, `/metrics`, `/v1/drift/*`, `/training/auth/*`, `/docs`.
+
+### Основные возможности
+
+- **Inference** — OpenAI-совместимый chat API с TTT-адаптацией на последнем user-сообщении
+- **Monitoring** — Prometheus metrics, drift reports, health
+- **Training** — LoRA jobs, datasets (MinIO), MLflow registry, deploy checkpoint
+- **Admin** — история Q&A, drift alerts, эксперименты, активная версия модели на inference
+"""
+
+OPENAPI_TAGS = [
+    {
+        "name": "inference",
+        "description": "Chat completions и пользовательский feedback. Требуется `INFERENCE_API_KEY`.",
+    },
+    {
+        "name": "monitoring",
+        "description": "Health, Prometheus `/metrics`, публичные drift-отчёты.",
+    },
+    {
+        "name": "training-auth",
+        "description": "Проверка `ACCESS_TOKEN` для Admin Studio (без auth на status/verify).",
+    },
+    {
+        "name": "training",
+        "description": "LoRA post-train: jobs, datasets, model registry, deploy, active inference version.",
+    },
+    {
+        "name": "training-admin",
+        "description": "Admin Studio API: overview, Q&A history, drift alerts, MLflow experiments.",
+    },
+]
+
+app = FastAPI(
+    title="MLOps Core API",
+    description=API_DESCRIPTION,
+    version="0.1.0",
+    openapi_tags=OPENAPI_TAGS,
+    lifespan=lifespan,
+)
+_admin_ui_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "ADMIN_UI_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173",
+    ).split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_admin_ui_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(auth_router)
+app.include_router(training_router)
+app.include_router(admin_router)
+
+
+@app.middleware("http")
+async def prometheus_request_middleware(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    if request.url.path not in excluded_latency_paths():
+        record_request_latency(
+            endpoint=request.url.path,
+            method=request.method,
+            status=response.status_code,
+            duration_sec=time.perf_counter() - start,
+        )
+    return response
+
+
+@app.get("/health", tags=["monitoring"], summary="Health check")
+async def health() -> Response:
+    healthy, checks = refresh_dependency_gauges(
+        redis_client=SESSION_CACHE.client if SESSION_CACHE is not None else None
+    )
+    record_health_check(healthy=healthy)
+    payload = {
+        "status": "ok" if healthy else "degraded",
+        "checks": checks,
+    }
+    return Response(
+        content=json.dumps(payload),
+        media_type="application/json",
+        status_code=200 if healthy else 503,
+    )
+
+
+@app.get("/metrics", tags=["monitoring"], summary="Prometheus metrics")
 async def metrics() -> Response:
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-@app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
+@app.get("/v1/drift/reports", tags=["monitoring"], summary="List drift reports")
+async def list_drift_reports(limit: int = 20) -> dict[str, list[dict[str, str]] | int]:
+    writer = get_drift_report_writer()
+    if writer is None:
+        raise HTTPException(status_code=503, detail="drift reporting disabled")
+    bounded_limit = max(1, min(limit, 100))
+    reports = writer.list_reports(limit=bounded_limit)
+    return {"count": len(reports), "reports": reports}
+
+
+@app.get("/v1/drift/reports/latest", tags=["monitoring"], summary="Latest drift report")
+async def get_latest_drift_report() -> dict:
+    writer = get_drift_report_writer()
+    if writer is None:
+        raise HTTPException(status_code=503, detail="drift reporting disabled")
+    report = writer.load_latest()
+    if report is None:
+        raise HTTPException(status_code=404, detail="drift report ещё не сгенерирован")
+    return report
+
+
+@app.get(
+    "/v1/drift/reports/{report_id}",
+    tags=["monitoring"],
+    summary="Get drift report by ID",
+)
+async def get_drift_report(report_id: str) -> dict:
+    writer = get_drift_report_writer()
+    if writer is None:
+        raise HTTPException(status_code=503, detail="drift reporting disabled")
+    report = writer.load(report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="drift report not found")
+    return report
+
+
+@app.post(
+    "/v1/feedback",
+    tags=["inference"],
+    summary="Rate a completion",
+    dependencies=[Depends(require_inference_api_key)],
+)
+async def submit_feedback(req: FeedbackRequest) -> dict[str, str | int]:
+    record = COMPLETION_REGISTRY.get(req.completion_id)
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail="completion_id не найден или срок хранения истёк",
+        )
+    record_user_rating(rating=req.rating, include_baseline=record.in_baseline)
+    interaction_log = get_interaction_log()
+    if interaction_log is not None:
+        interaction_log.update_rating(req.completion_id, req.rating)
+    return {
+        "status": "ok",
+        "completion_id": req.completion_id,
+        "rating": req.rating,
+    }
+
+
+@app.post(
+    "/v1/chat/completions",
+    tags=["inference"],
+    summary="Chat completion with TTT",
+    response_model=ChatCompletionResponse,
+    dependencies=[Depends(require_inference_api_key)],
+)
 async def chat_completions(req: ChatCompletionRequest) -> ChatCompletionResponse:
-    return run_inference(req)
+    try:
+        return run_inference(req)
+    except HTTPException as exc:
+        user_text = extract_last_user_text_stripped(req.messages) or ""
+        record_chat_completion_metrics(
+            prompt_text=user_text,
+            response_text="",
+            status=f"error_{exc.status_code}",
+        )
+        raise
