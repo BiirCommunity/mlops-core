@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: models-pvc
+  namespace: {{ cookiecutter.namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ cookiecutter.storage_class }}
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-pvc
+  namespace: {{ cookiecutter.namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ cookiecutter.storage_class }}
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: reports-pvc
+  namespace: {{ cookiecutter.namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ cookiecutter.storage_class }}
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+  namespace: {{ cookiecutter.namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ cookiecutter.storage_class }}
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mlflow-pvc
+  namespace: {{ cookiecutter.namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ cookiecutter.storage_class }}
+  resources:
+    requests:
+      storage: 5Gi
+{% if cookiecutter.use_auth_service == "yes" %}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: auth-pvc
+  namespace: {{ cookiecutter.namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ cookiecutter.storage_class }}
+  resources:
+    requests:
+      storage: 1Gi
+{% endif %}
+{% if cookiecutter.use_monitoring == "yes" %}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+  namespace: {{ cookiecutter.namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ cookiecutter.storage_class }}
+  resources:
+    requests:
+      storage: 2Gi
+{% endif %}

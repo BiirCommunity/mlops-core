@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Black
+        run: uv run black --check .
+
+      - name: Pylint
+        run: uv run pylint app
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: {{ cookiecutter.project_slug }}-app:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Validate k8s manifests
+        run: |
+          kubectl kustomize k8s/ > /dev/null
+          kubectl kustomize k8s/overlays/no-gpu/ > /dev/null
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: {% raw %}github.event.pull_request.head.repo.full_name == github.repository{% endraw %}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image tag from branch
+        id: branch_tag
+        run: |
+          TAG="${GITHUB_HEAD_REF##*/}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_HEAD_REF: {% raw %}${{ github.head_ref }}{% endraw %}
+
+      - name: Image name (lowercase for GHCR)
+        id: image
+        run: |
+          REPO_LOWER=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          echo "name=ghcr.io/${REPO_LOWER}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: {% raw %}${{ github.actor }}{% endraw %}
+          password: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: {% raw %}${{ steps.image.outputs.name }}:${{ steps.branch_tag.outputs.tag }}{% endraw %}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

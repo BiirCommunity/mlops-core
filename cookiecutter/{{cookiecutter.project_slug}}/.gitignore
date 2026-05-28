@@ -1,0 +1,48 @@
+### IDE
+.idea/
+*.iws
+out/
+
+# Environment & secrets
+.env
+.env.local
+.env.docker.compose
+grafana/.env.grafana
+prometheus/.env.prometheus
+k8s/secrets.yaml
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Node / frontend
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Runtime & generated data
+reports/
+data/training/
+
+# DVC
+.dvc/cache/
+.dvc/tmp/
+.dvc/config.local
+
+# Models (binary tracked via DVC → MinIO)
+*.pt
+/models/model.pt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.log
