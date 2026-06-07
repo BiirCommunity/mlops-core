@@ -1,5 +1,3 @@
-"""LoRA post-train, model registry, datasets and Admin Studio API routes."""
-
 import os
 from pathlib import Path
 from typing import Any
@@ -280,19 +278,17 @@ async def download_example_dataset() -> FileResponse:
     )
 
 
-@router.get("/models/status", summary="Unified model pipeline status")
+@router.get("/models/status")
 async def get_model_pipeline_status() -> dict[str, Any]:
     return build_model_status(_settings)
 
 
-@router.get("/models/active", summary="Active model version on inference")
+@router.get("/models/active")
 async def get_active_inference_model() -> dict[str, Any]:
     return build_model_status(_settings)
 
 
-@router.post(
-    "/models/dvc/sync", summary="Sync checkpoint on disk to DVC remote (MinIO)"
-)
+@router.post("/models/dvc/sync")
 async def sync_dvc_checkpoint() -> dict[str, Any]:
     try:
         return sync_model_to_dvc(_settings)

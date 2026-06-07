@@ -1,5 +1,3 @@
-"""Unified model pipeline status (MLflow deploy + DVC + inference)."""
-
 from pathlib import Path
 from typing import Any
 

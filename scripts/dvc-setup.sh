@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# Configure DVC remote from .env.docker.compose (MinIO S3-compatible).
-set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="${ENV_FILE:-$ROOT/.env.docker.compose}"
 DVC="${DVC_BIN:-$ROOT/.venv/bin/dvc}"
 
 if [[ ! -x "$DVC" ]]; then
-  echo "DVC not found. Run: uv sync --group dev" >&2
+  echo "Нет dvc. Сначала: uv sync --group dev" >&2
   exit 1
 fi
 
@@ -37,5 +35,4 @@ secret_key="${MINIO_SECRET_KEY:-minioadmin}"
 "$DVC" remote modify minio access_key_id "$access_key"
 "$DVC" remote modify --local minio secret_access_key "$secret_key"
 
-echo "DVC remote 'minio' -> s3://${bucket}/${prefix}"
-echo "endpoint: ${endpoint}"
+echo "minio → s3://${bucket}/${prefix} (${endpoint})"

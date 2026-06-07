@@ -1,5 +1,3 @@
-"""Training / MLflow / MinIO configuration from environment."""
-
 import os
 from dataclasses import dataclass
 

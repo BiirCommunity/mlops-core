@@ -1,5 +1,3 @@
-"""Drift report generation and persistence."""
-
 import json
 import os
 import time

@@ -1,31 +1,20 @@
-import { Navigate, Route, Routes } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/auth/AuthContext";
-import { getToken } from "@/auth/token";
-import { ChatPage } from "@/pages/ChatPage";
-import { LoginPage } from "@/pages/LoginPage";
+import { useEffect, useState } from "react";
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
-  if (!token && !getToken()) {
-    return <Navigate to="/login" replace />;
-  }
-  return <>{children}</>;
-}
+export default function App() {
+  const [health, setHealth] = useState<string>("…");
 
-export function App() {
+  useEffect(() => {
+    fetch("/api/health")
+      .then((r) => r.json())
+      .then((d) => setHealth(d.status ?? JSON.stringify(d)))
+      .catch(() => setHealth("offline"));
+  }, []);
+
   return (
-    <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <ChatPage />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </AuthProvider>
+    <main className="page">
+      <h1>{{ cookiecutter.project_name }}</h1>
+      <p>Chat UI</p>
+      <p>API: {health}</p>
+    </main>
   );
 }

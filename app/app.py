@@ -63,9 +63,9 @@ if torch.cuda.is_available():
 
 
 class ChatMessage(BaseModel):
-    role: str = Field(description="Роль: user, assistant или system")
-    content: str = Field(description="Текст сообщения")
-    name: Optional[str] = Field(default=None, description="Опциональное имя участника")
+    role: str
+    content: str
+    name: Optional[str] = None
 
 
 class ChatCompletionRequest(BaseModel):
@@ -80,39 +80,22 @@ class ChatCompletionRequest(BaseModel):
         }
     )
 
-    model: str = Field(
-        default="local", description="Идентификатор модели (локальный чекпоинт)"
-    )
-    messages: List[ChatMessage] = Field(
-        description="История диалога; для TTT используется последнее user-сообщение"
-    )
-    max_tokens: int = Field(default=200, ge=1, description="Максимум токенов в ответе")
-    temperature: float = Field(default=0.8, ge=0, description="Температура sampling")
-    top_p: float = Field(default=0.9, ge=0, le=1, description="Nucleus sampling top-p")
-    top_k: int = Field(
-        default=0, ge=0, description="Top-k sampling; 0 — без ограничения"
-    )
-    repetition_penalty: float = Field(default=1.1, ge=1, description="Штраф за повторы")
-    stream: bool = Field(default=False, description="Streaming не поддерживается")
-    session_id: Optional[str] = Field(
-        default=None,
-        description="ID сессии для сохранения TTT-состояния в Redis",
-    )
-    conversation_id: Optional[str] = Field(
-        default=None,
-        description="Альias session_id для совместимости с OpenAI API",
-    )
-    user_rating: Optional[int] = Field(
-        default=None,
-        ge=1,
-        le=5,
-        description="Опциональная оценка ответа 1–5 (учитывается в drift)",
-    )
+    model: str = "local"
+    messages: List[ChatMessage]
+    max_tokens: int = Field(default=200, ge=1)
+    temperature: float = Field(default=0.8, ge=0)
+    top_p: float = Field(default=0.9, ge=0, le=1)
+    top_k: int = Field(default=0, ge=0)
+    repetition_penalty: float = Field(default=1.1, ge=1)
+    stream: bool = False
+    session_id: Optional[str] = None
+    conversation_id: Optional[str] = None
+    user_rating: Optional[int] = Field(default=None, ge=1, le=5)
 
 
 class FeedbackRequest(BaseModel):
-    completion_id: str = Field(description="ID из ответа chat/completions")
-    rating: int = Field(ge=1, le=5, description="Оценка 1–5")
+    completion_id: str
+    rating: int = Field(ge=1, le=5)
 
 
 class ChatCompletionChoice(BaseModel):
@@ -204,17 +187,10 @@ COMPLETION_REGISTRY = CompletionRegistry()
 
 
 def tokenize(text: str) -> torch.Tensor:
-    """Токенизация текста через HuggingFace tokenizer."""
     return tokenizer.encode(text, return_tensors="pt").squeeze(0)
 
 
 def prepare_user_prompt_ids(user_text: str) -> torch.Tensor:
-    """
-    Токены последнего user-сообщения для TTT и генерации.
-
-    Обрезка по MAX_CONTEXT_TOKENS; если в последовательности < 2 токенов,
-    дублируется последний (иначе TTT не определён).
-    """
     ids = tokenize(user_text).to(device)
     n = int(ids.shape[0])
     if n == 0:
@@ -231,7 +207,6 @@ def prepare_user_prompt_ids(user_text: str) -> torch.Tensor:
 
 
 def eos_token_ids_for_generation() -> tuple[int, ...]:
-    """Набор стоп-токенов для Llama 3 (eos + eot и т.д.), как ожидает чекпоинт."""
     out: list[int] = []
     e = tokenizer.eos_token_id
     if e is not None:
@@ -256,12 +231,6 @@ def eos_token_ids_for_generation() -> tuple[int, ...]:
 
 
 def resolve_dialog_id(req: ChatCompletionRequest) -> str | None:
-    """
-    Идентификатор диалога (ветки чата): один стабильный UUID/строка на тред.
-
-    Приоритет: `session_id`, иначе `conversation_id` (удобное имя под UI).
-    Без диалога Redis-кэш TTT не используется (одноразовая адаптация на запрос).
-    """
     for raw in (req.session_id, req.conversation_id):
         if raw is None:
             continue
@@ -272,7 +241,6 @@ def resolve_dialog_id(req: ChatCompletionRequest) -> str | None:
 
 
 def _cache_segment(raw: str | None, *, max_plain: int, hash_len: int) -> str:
-    """длинные/странные строки → sha256-префикс."""
     if not raw or not (s := str(raw).strip()):
         return "_"
     if len(s) > max_plain or any(c in s for c in "|\n\r\x00"):
@@ -291,7 +259,6 @@ def resolve_ttt_cache_key(req: ChatCompletionRequest) -> str | None:
 
 
 def extract_last_user_text_stripped(messages: List[ChatMessage]) -> str | None:
-    """Последний непустой user после strip"""
     for msg in reversed(messages):
         if msg.role != "user":
             continue
@@ -342,12 +309,6 @@ def _build_one_shot_ttt_model(user_text: str):
 
 
 def build_inference_model_for_request(req: ChatCompletionRequest):
-    """
-    Модель для inference с учётом TTT и Redis-сессии.
-
-    Без Redis — одноразовый TTT на промпт. С Redis и `session_id` / `conversation_id`
-    — загрузка, адаптация и сохранение inner state между запросами диалога.
-    """
     user_text = extract_last_user_text_stripped(req.messages)
     if not user_text or TTT_STEPS <= 0:
         return base_model
@@ -620,47 +581,17 @@ async def lifespan(_: FastAPI):
     yield
 
 
-API_DESCRIPTION = """
-**MLOps Core** — сервис инференса causal LM с Test-Time Training (TTT), drift-мониторингом и LoRA post-train.
-
-### Аутентификация
-
-| Группа | Переменная | Заголовок |
-|--------|------------|-----------|
-| Inference (`/v1/chat/completions`, `/v1/feedback`) | `INFERENCE_API_KEY` | `X-API-Key` или `Authorization: Bearer` |
-| Training / Admin Studio (`/training/*`) | `ACCESS_TOKEN` | `Authorization: Bearer` или `X-Access-Token` |
-
-Без ключа: `/health`, `/metrics`, `/v1/drift/*`, `/training/auth/*`, `/docs`.
-
-### Основные возможности
-
-- **Inference** — OpenAI-совместимый chat API с TTT-адаптацией на последнем user-сообщении
-- **Monitoring** — Prometheus metrics, drift reports, health
-- **Training** — LoRA jobs, datasets (MinIO), MLflow registry, deploy checkpoint
-- **Admin** — история Q&A, drift alerts, эксперименты, активная версия модели на inference
-"""
+API_DESCRIPTION = (
+    "Inference (chat + TTT), training, drift/metrics. "
+    "Inference: INFERENCE_API_KEY. Training/admin: ACCESS_TOKEN."
+)
 
 OPENAPI_TAGS = [
-    {
-        "name": "inference",
-        "description": "Chat completions и пользовательский feedback. Требуется `INFERENCE_API_KEY`.",
-    },
-    {
-        "name": "monitoring",
-        "description": "Health, Prometheus `/metrics`, публичные drift-отчёты.",
-    },
-    {
-        "name": "training-auth",
-        "description": "Проверка `ACCESS_TOKEN` для Admin Studio (без auth на status/verify).",
-    },
-    {
-        "name": "training",
-        "description": "LoRA post-train: jobs, datasets, model registry, deploy, active inference version.",
-    },
-    {
-        "name": "training-admin",
-        "description": "Admin Studio API: overview, Q&A history, drift alerts, MLflow experiments.",
-    },
+    {"name": "inference"},
+    {"name": "monitoring"},
+    {"name": "training-auth"},
+    {"name": "training"},
+    {"name": "training-admin"},
 ]
 
 app = FastAPI(
@@ -704,7 +635,7 @@ async def prometheus_request_middleware(request: Request, call_next):
     return response
 
 
-@app.get("/health", tags=["monitoring"], summary="Health check")
+@app.get("/health", tags=["monitoring"])
 async def health() -> Response:
     healthy, checks = refresh_dependency_gauges(
         redis_client=SESSION_CACHE.client if SESSION_CACHE is not None else None
@@ -721,12 +652,12 @@ async def health() -> Response:
     )
 
 
-@app.get("/metrics", tags=["monitoring"], summary="Prometheus metrics")
+@app.get("/metrics", tags=["monitoring"])
 async def metrics() -> Response:
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-@app.get("/v1/drift/reports", tags=["monitoring"], summary="List drift reports")
+@app.get("/v1/drift/reports", tags=["monitoring"])
 async def list_drift_reports(limit: int = 20) -> dict[str, list[dict[str, str]] | int]:
     writer = get_drift_report_writer()
     if writer is None:
@@ -736,7 +667,7 @@ async def list_drift_reports(limit: int = 20) -> dict[str, list[dict[str, str]] 
     return {"count": len(reports), "reports": reports}
 
 
-@app.get("/v1/drift/reports/latest", tags=["monitoring"], summary="Latest drift report")
+@app.get("/v1/drift/reports/latest", tags=["monitoring"])
 async def get_latest_drift_report() -> dict:
     writer = get_drift_report_writer()
     if writer is None:
@@ -750,7 +681,6 @@ async def get_latest_drift_report() -> dict:
 @app.get(
     "/v1/drift/reports/{report_id}",
     tags=["monitoring"],
-    summary="Get drift report by ID",
 )
 async def get_drift_report(report_id: str) -> dict:
     writer = get_drift_report_writer()
@@ -765,7 +695,6 @@ async def get_drift_report(report_id: str) -> dict:
 @app.post(
     "/v1/feedback",
     tags=["inference"],
-    summary="Rate a completion",
     dependencies=[Depends(require_inference_api_key)],
 )
 async def submit_feedback(req: FeedbackRequest) -> dict[str, str | int]:
@@ -789,7 +718,6 @@ async def submit_feedback(req: FeedbackRequest) -> dict[str, str | int]:
 @app.post(
     "/v1/chat/completions",
     tags=["inference"],
-    summary="Chat completion with TTT",
     response_model=ChatCompletionResponse,
     dependencies=[Depends(require_inference_api_key)],
 )

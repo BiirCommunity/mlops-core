@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Сборка образов и push в локальный registry для k3s (без docker save / ctr import).
-set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -16,14 +14,15 @@ build_push() {
   local context="$2"
   shift 2
   local image="${REGISTRY}/${name}:${TAG}"
-  echo ""
-  echo "==> docker build -t ${image} ${context} $*"
+
+  echo
+  echo "build ${image} (${context})"
   docker build -t "${image}" "$@" "${context}"
-  echo "==> docker push ${image}"
   docker push "${image}"
 }
 
-echo "==> Сборка и push в ${REGISTRY} (public: ${PUBLIC_URL})..."
+echo "Сборка → ${REGISTRY}, tag ${TAG}"
+
 build_push {{ cookiecutter.project_slug }}-admin-ui ./admin-ui \
   --build-arg "VITE_MLFLOW_UI_URL=${PUBLIC_URL}:{{ cookiecutter.nodeport_mlflow }}"
 build_push {{ cookiecutter.project_slug }}-chat-ui ./chat-ui
@@ -33,18 +32,19 @@ build_push {{ cookiecutter.project_slug }}-auth-service ./auth-service
 {% endif %}
 build_push {{ cookiecutter.project_slug }}-app .
 
-echo ""
-echo "==> Применение манифестов (kustomize подставит ${REGISTRY}/...)..."
 if kubectl cluster-info >/dev/null 2>&1; then
+  echo
+  echo "kubectl apply + restart deployments..."
   kubectl apply -k k8s/ 2>/dev/null || true
   kubectl -n {{ cookiecutter.namespace }} rollout restart \
     deployment/app deployment/admin-ui \
     deployment/chat-ui deployment/mlflow{% if cookiecutter.use_auth_service == "yes" %} \
     deployment/auth-service{% endif %} 2>/dev/null || true
-  echo "Статус: kubectl -n {{ cookiecutter.namespace }} get pods -w"
+  echo "Смотри: kubectl -n {{ cookiecutter.namespace }} get pods -w"
 else
-  echo "kubectl недоступен — после настройки registry выполните: ./scripts/k3s-deploy.sh"
+  echo
+  echo "kubectl недоступен — потом запусти ./scripts/k3s-deploy.sh"
 fi
 
-echo ""
-echo "Готово. Образы в registry ${REGISTRY}, k3s подтянет их при старте подов."
+echo
+echo "Образы в ${REGISTRY}"

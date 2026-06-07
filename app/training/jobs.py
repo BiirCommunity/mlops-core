@@ -1,5 +1,3 @@
-"""Background LoRA training job manager."""
-
 import json
 import threading
 import time

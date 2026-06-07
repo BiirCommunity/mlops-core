@@ -155,14 +155,13 @@ docker compose --env-file .env.docker.compose -f deploy/compose/docker-compose.y
 
 ## Cookiecutter
 
-Полный production-шаблон стека (app, auth, UI, k8s, скрипты):
+Каркас для новых MLOps-проектов (не копия mlops-core):
 
 ```bash
-uv sync --group dev
 uv run cookiecutter cookiecutter/
 ```
 
-См. [cookiecutter/README.md](cookiecutter/README.md). После изменений в репозитории: `uv run python scripts/sync_cookiecutter_template.py`.
+Подробнее: [cookiecutter/README.md](cookiecutter/README.md). Шаблон — в `cookiecutter/{{cookiecutter.project_slug}}/`. Корень репозитория — reference implementation с полным LLM-стеком.
 
 ## Структура репозитория
 
@@ -177,7 +176,8 @@ uv run cookiecutter cookiecutter/
 ├── deploy/
 │   ├── k3s/                  # registries.yaml, daemon.json
 │   └── compose/              # Docker Compose для dev
-├── cookiecutter/             # Шаблон нового проекта
+├── cookiecutter/             # Каркас нового проекта
+│   └── {{cookiecutter.project_slug}}/
 ├── scripts/
 │   ├── k3s-setup-registry.sh
 │   ├── k3s-build-images.sh

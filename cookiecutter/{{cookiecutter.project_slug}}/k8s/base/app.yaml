@@ -17,7 +17,9 @@ spec:
       labels:
         app: app
     spec:
+{% if cookiecutter.include_gpu == "yes" %}
       runtimeClassName: nvidia
+{% endif %}
       containers:
         - name: app
           image: {{ cookiecutter.project_slug }}-app:latest
@@ -28,17 +30,6 @@ spec:
             - configMapRef:
                 name: {{ cookiecutter.project_slug }}-config
           env:
-            - name: HF_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ cookiecutter.project_slug }}-secrets
-                  key: HF_TOKEN
-                  optional: true
-            - name: ACCESS_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ cookiecutter.project_slug }}-secrets
-                  key: ACCESS_TOKEN
             - name: INFERENCE_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -59,31 +50,35 @@ spec:
               mountPath: /models
             - name: data
               mountPath: /app/data
-            - name: reports
-              mountPath: /app/reports
           resources:
             requests:
+{% if cookiecutter.include_gpu == "yes" %}
+              memory: 4Gi
+              cpu: "1"
+              nvidia.com/gpu: "1"
+            limits:
               memory: 8Gi
               cpu: "2"
               nvidia.com/gpu: "1"
+{% else %}
+              memory: 256Mi
+              cpu: 100m
             limits:
-              memory: 32Gi
-              cpu: "8"
-              nvidia.com/gpu: "1"
+              memory: 512Mi
+              cpu: 500m
+{% endif %}
           readinessProbe:
             httpGet:
               path: /health
               port: 8080
-            initialDelaySeconds: 120
-            periodSeconds: 15
-            timeoutSeconds: 5
+            initialDelaySeconds: 5
+            periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /health
               port: 8080
-            initialDelaySeconds: 180
+            initialDelaySeconds: 10
             periodSeconds: 30
-            timeoutSeconds: 5
       volumes:
         - name: models
           persistentVolumeClaim:
@@ -91,9 +86,6 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: data-pvc
-        - name: reports
-          persistentVolumeClaim:
-            claimName: reports-pvc
 ---
 apiVersion: v1
 kind: Service

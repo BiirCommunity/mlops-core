@@ -1,5 +1,3 @@
-"""DVC-compatible checkpoint tracking via MinIO (without requiring dvc CLI in runtime)."""
-
 import hashlib
 import os
 import re

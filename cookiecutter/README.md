@@ -1,64 +1,39 @@
-# Cookiecutter — production-шаблон MLOps LLM
+# Cookiecutter — каркас MLOps-проекта
 
-Полный стек **mlops-core**: inference, LoRA training, MLflow, MinIO, Admin/Chat UI, k3s-деплой.
+Шаблон, не копия готового сервиса. На выходе — структура репозитория, инфра (k3s, MLflow, MinIO, CI) и минимальные заглушки app/UI.
 
-## Быстрый старт
+## Новый проект
 
 ```bash
-# из корня mlops-core
 uv sync --group dev
-uv run cookiecutter cookiecutter/ --no-input
-
-# или интерактивно
 uv run cookiecutter cookiecutter/
 ```
 
-Сгенерированный проект появится в каталоге с именем `project_slug` (по умолчанию `my-mlops-llm`).
+## Что внутри шаблона
+
+| Каталог | Содержимое |
+|---------|------------|
+| `app/` | FastAPI: `/health`, `/metrics` |
+| `auth-service/` | заглушка `/health` (если `use_auth_service=yes`) |
+| `admin-ui/`, `chat-ui/` | одна страница, проверка API |
+| `k8s/`, `deploy/` | Redis, MinIO, MLflow, app, UI, ingress |
+| `scripts/` | k3s build/deploy, dvc-setup |
+| `.github/` | black, pylint, docker build, kustomize |
+| `prometheus/`, `grafana-provisioning/` | если `use_monitoring=yes` |
 
 ## Параметры
 
-| Параметр | Описание | По умолчанию |
-|----------|----------|--------------|
-| `project_name` | Человекочитаемое имя | My MLOps LLM |
-| `project_slug` | Slug для образов, pyproject, каталога | из `project_name` |
-| `namespace` | Kubernetes namespace | `mlops` |
-| `mlops_public_url` | Публичный URL (`http://IP`) | `http://localhost` |
-| `public_host` | IP/хост без схемы | `localhost` |
-| `lan_ip` | LAN IP для CORS | `192.168.0.103` |
-| `mlops_registry` | Docker registry для k3s | `localhost:5000` |
-| `auth_token_prefix` | Префикс JWT/localStorage | `mlops_` |
-| `minio_bucket_*` | Имена S3-бакетов | `{slug}-models`, `{slug}-datasets` |
-| `include_gpu` | GPU в app Deployment + CUDA deps | `yes` |
-| `use_auth_service` | auth-service, login UI, JWT | `yes` |
-| `use_monitoring` | Prometheus + Grafana | `yes` |
-| `nodeport_*` | NodePort для UI/API | 30000–30901 |
+`project_slug`, `namespace`, `mlops_public_url`, `include_gpu`, `use_auth_service`, `use_monitoring`, nodeport'ы — в `cookiecutter.json`.
 
-## После генерации
+## Поддержка шаблона
 
-```bash
-cd <project_slug>
-cp k8s/secrets.example.yaml k8s/secrets.yaml   # заполнить секреты
-./scripts/k3s-build-images.sh
-./scripts/k3s-deploy.sh
-./scripts/k3s-copy-model.sh models/model.pt     # при необходимости
-```
+Правки — только в `cookiecutter/{{cookiecutter.project_slug}}/`.
 
-CPU-only: при `include_gpu=no` `k3s-deploy.sh` автоматически применяет `k8s/overlays/no-gpu/`.
+Корень репозитория `mlops-core` — **reference implementation** (полный LLM-стек), он не собирается из шаблона.
 
-## Поддержка шаблона (для maintainers)
-
-После изменений в mlops-core синхронизируйте шаблон:
-
-```bash
-uv run python scripts/sync_cookiecutter_template.py
-```
-
-Скрипт копирует репозиторий в `cookiecutter/{{cookiecutter.project_slug}}/` и подставляет Jinja-переменные. Условная логика (GPU, auth, monitoring) — в `cookiecutter/overrides/` и `cookiecutter/hooks/`.
-
-Проверка генерации:
+Проверка:
 
 ```bash
 uv run cookiecutter cookiecutter/ --no-input -o /tmp
-ls /tmp/my-mlops-llm
-kubectl kustomize /tmp/my-mlops-llm/k8s/ > /dev/null
+cd /tmp/my-mlops-project && uv sync --group dev && uv run pytest
 ```

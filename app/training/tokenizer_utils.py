@@ -1,8 +1,5 @@
-"""Tokenizer helpers for chat-style LoRA training."""
-
 from transformers import PreTrainedTokenizerBase
 
-# Meta-Llama-3 default (from tokenizer_config.json on Hugging Face).
 LLAMA3_CHAT_TEMPLATE = "{% set loop_messages = messages %}{% for message in loop_messages %}{% set content = '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' %}{% if loop.index0 == 0 %}{% set content = bos_token + content %}{% endif %}{{ content }}{% endfor %}{% if add_generation_prompt %}{{ '<|start_header_id|>assistant<|end_header_id|>\n\n' }}{% endif %}"
 
 

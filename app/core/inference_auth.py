@@ -1,5 +1,3 @@
-"""API key access control for inference endpoints."""
-
 import os
 import secrets
 

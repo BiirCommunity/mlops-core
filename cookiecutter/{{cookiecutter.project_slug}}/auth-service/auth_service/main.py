@@ -1,14 +1,8 @@
-import uvicorn
+from fastapi import FastAPI
 
-from auth_service.config import Settings
-from auth_service.routes import create_app
-
-
-def main() -> None:
-    settings = Settings.from_env()
-    app = create_app(settings)
-    uvicorn.run(app, host=settings.host, port=settings.port)
+app = FastAPI(title="{{ cookiecutter.project_slug }}-auth")
 
 
-if __name__ == "__main__":
-    main()
+@app.get("/health")
+def health():
+    return {"status": "ok"}

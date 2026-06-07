@@ -1,5 +1,3 @@
-"""Track which MLflow model version is deployed on disk and loaded in inference."""
-
 import json
 import os
 import time

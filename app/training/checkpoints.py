@@ -1,5 +1,3 @@
-"""Deployable training checkpoints from interrupted or partial LoRA runs."""
-
 from pathlib import Path
 from typing import Any
 

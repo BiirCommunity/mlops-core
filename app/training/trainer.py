@@ -1,5 +1,3 @@
-"""LoRA post-training loop with MLflow + MinIO publishing."""
-
 import gc
 import os
 from copy import deepcopy

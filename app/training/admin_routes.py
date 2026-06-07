@@ -1,5 +1,3 @@
-"""Admin API: interaction history, drift alerts, MLflow experiments."""
-
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException

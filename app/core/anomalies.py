@@ -1,5 +1,3 @@
-"""Heuristic anomaly flags for logged chat interactions."""
-
 TOXICITY_WARN = 0.7
 TOXICITY_CRITICAL = 0.85
 

@@ -1,5 +1,3 @@
-"""Online drift detection: data, concept, and target drift."""
-
 import io
 import math
 import os

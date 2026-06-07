@@ -29,6 +29,5 @@ configMapGenerator:
   - name: grafana-dashboard-files
     namespace: {{ cookiecutter.namespace }}
     files:
-      - llm.json=grafana/dashboards/llm.json
-      - drift.json=grafana/dashboards/drift.json
+      - app.json=grafana/dashboards/app.json
 {% endif %}

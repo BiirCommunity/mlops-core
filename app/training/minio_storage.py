@@ -1,5 +1,3 @@
-"""MinIO object storage for datasets and model artifacts."""
-
 import io
 from datetime import datetime
 from pathlib import Path

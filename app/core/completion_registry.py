@@ -1,5 +1,3 @@
-"""In-memory registry of recent completions for async user feedback."""
-
 import time
 from collections import OrderedDict
 from dataclasses import dataclass

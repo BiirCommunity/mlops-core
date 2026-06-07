@@ -21,13 +21,6 @@ MODEL_CFG = ModelConfig(
 
 
 def get_device(device_str: str | None = None) -> torch.device:
-    """
-    Удобная функция выбора устройства.
-
-    Приоритет:
-      1. Если явно передана строка (например, "cuda" или "cpu") — используем её.
-      2. Иначе берём "cuda", если она доступна, иначе "cpu".
-    """
     if device_str is not None:
         return torch.device(device_str)
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")

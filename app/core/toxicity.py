@@ -1,5 +1,3 @@
-"""Multilingual toxicity scoring via HuggingFace regression model."""
-
 import os
 
 import torch

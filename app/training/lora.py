@@ -1,5 +1,3 @@
-"""LoRA adapters for NormalLinear layers in CausalLM."""
-
 import math
 from typing import Iterable
 

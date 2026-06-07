@@ -1,5 +1,3 @@
-"""Multilingual sentence embeddings for drift monitoring."""
-
 import os
 
 import numpy as np

@@ -1,5 +1,3 @@
-"""Chat JSONL dataset for LoRA post-training with assistant-only loss mask."""
-
 import json
 from pathlib import Path
 from typing import Any

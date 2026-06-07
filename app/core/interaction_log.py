@@ -1,5 +1,3 @@
-"""Persistent interaction history with anomaly flags for admin UI."""
-
 import json
 import os
 import time

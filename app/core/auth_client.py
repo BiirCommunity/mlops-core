@@ -1,5 +1,3 @@
-"""Validate bearer tokens against auth-service."""
-
 import json
 import os
 import time

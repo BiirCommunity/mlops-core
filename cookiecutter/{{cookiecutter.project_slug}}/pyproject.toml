@@ -1,25 +1,13 @@
 [project]
 name = "{{ cookiecutter.project_slug }}"
 version = "0.1.0"
-description = "Add your description here"
+description = "{{ cookiecutter.description }}"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.135.1",
-    "isort>=8.0.1",
-    "langdetect>=1.0.9",
     "prometheus-client>=0.25.0",
-    "protobuf>=5.29.0",
-    "redis>=7.4.0",
-    "sentence-transformers>=3.4.0",
-    "torch>=2.5.1",
-    "transformers>=5.5.3",
-    "sentencepiece>=0.2.0",
     "uvicorn>=0.42.0",
-    "mlflow==2.22.0",
-    "boto3>=1.35.0",
-    "minio>=7.2.0",
-    "python-multipart>=0.0.20",
 ]
 
 [dependency-groups]
@@ -27,6 +15,7 @@ dev = [
     "black>=26.3.1",
     "cookiecutter>=2.6.0",
     "dvc[s3]>=3.59.0",
+    "httpx>=0.28.0",
     "pylint>=4.0.5",
     "pytest>=8.4.0",
 ]
@@ -34,10 +23,6 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = [".", "auth-service"]
-filterwarnings = [
-    "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
-    "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
-]
 
 [tool.black]
 line-length = 88
@@ -52,9 +37,6 @@ extend-exclude = '''
   | dist
 )/
 '''
-
-[[tool.uv.index]]
-url = "https://download.pytorch.org/whl/cu121"
 
 [tool.pylint.main]
 py-version = "3.12"
@@ -72,17 +54,5 @@ disable = [
     "invalid-name",
     "wrong-import-position",
     "line-too-long",
-    "global-statement",
-    "too-many-arguments",
-    "too-many-locals",
-    "too-many-branches",
-    "too-many-statements",
-    "too-many-instance-attributes",
     "too-few-public-methods",
-    "import-outside-toplevel",
-    "unused-argument",
-    "broad-exception-caught",
-    "duplicate-code",
-    "consider-using-in",
-    "not-callable",
 ]

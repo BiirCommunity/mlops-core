@@ -1,5 +1,3 @@
-"""Bearer token access control for training/admin API."""
-
 import os
 import secrets
 

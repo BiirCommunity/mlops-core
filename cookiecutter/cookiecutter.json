@@ -1,14 +1,14 @@
 {
-  "project_name": "My MLOps LLM",
+  "project_name": "My MLOps Project",
   "project_slug": "{{ cookiecutter.project_name.lower().replace(' ', '-').replace('_', '-') }}",
   "namespace": "mlops",
-  "description": "FastAPI LLM inference with LoRA training, MLflow, MinIO and k3s",
+  "description": "MLOps service scaffold with k3s, MLflow, MinIO",
   "author_name": "Your Name",
   "author_email": "you@example.com",
   "python_version": "3.12",
   "mlops_public_url": "http://localhost",
   "public_host": "localhost",
-  "lan_ip": "192.168.0.103",
+  "lan_ip": "127.0.0.1",
   "mlops_registry": "localhost:5000",
   "mlops_image_tag": "latest",
   "auth_token_prefix": "mlops_",
@@ -16,9 +16,6 @@
   "minio_bucket_datasets": "{{ cookiecutter.project_slug }}-datasets",
   "ingress_host": "mlops.local",
   "storage_class": "local-path",
-  "tokenizer_name": "meta-llama/Meta-Llama-3-8B",
-  "mlflow_experiment_name": "llm-lora-posttrain",
-  "mlflow_model_name": "llm-lora",
   "nodeport_admin": "30000",
   "nodeport_chat": "30100",
   "nodeport_grafana": "30300",
@@ -30,19 +27,6 @@
   "use_auth_service": ["yes", "no"],
   "use_monitoring": ["yes", "no"],
   "_copy_without_render": [
-    "*.json",
-    "*.pt",
-    "*.dvc",
-    "*.tsx",
-    "**/tokenizer_utils.py",
-    "uv.lock",
-    "package-lock.json",
-    "*.png",
-    "*.jpg",
-    "*.svg",
-    "*.ico",
-    "*.woff",
-    "*.woff2",
-    "*.ttf"
+    "package-lock.json"
   ]
 }
