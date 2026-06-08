@@ -1,6 +1,6 @@
 # Локальный Docker Compose (legacy / dev)
 
-Основной способ деплоя — **k3s**, см. [docs/deploy-k3s.md](../../docs/deploy-k3s.md).
+Основной способ деплоя — **k3s**, см. [docs/deploy-argocd.md](../../docs/deploy-argocd.md).
 
 ```bash
 cp ../../.env.docker.compose.example ../../.env.docker.compose

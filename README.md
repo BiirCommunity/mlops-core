@@ -2,7 +2,7 @@
 
 Платформа MLOps для LLM: inference (TTT), LoRA post-train, единый пайплайн моделей (MLflow → disk → DVC → inference), мониторинг drift/toxicity, Admin UI и Chat UI с централизованной авторизацией.
 
-**Основной деплой: k3s** (локальный registry + NodePort). Docker Compose — только для локальной разработки.
+**Основной деплой: k3s + Argo CD** (образы из GHCR). Docker Compose — только для локальной разработки.
 
 ## Архитектура
 
@@ -73,53 +73,30 @@ flowchart TB
 
 | UI | Логин | Пароль |
 |----|-------|--------|
-| Admin / Chat | `admin` | `AUTH_BOOTSTRAP_PASSWORD` из `k8s/secrets.yaml` |
-| Grafana | `admin` | `GF_SECURITY_ADMIN_PASSWORD` из secrets |
-| MinIO | `MINIO_ACCESS_KEY` | `MINIO_SECRET_KEY` из secrets |
+| Admin / Chat | `admin` | `AUTH_BOOTSTRAP_PASSWORD` (Argo CD → mlops-core-secrets) |
+| Grafana | `admin` | `GF_SECURITY_ADMIN_PASSWORD` (Argo CD → mlops-core-secrets) |
+| MinIO | `MINIO_ACCESS_KEY` | `MINIO_SECRET_KEY` (Argo CD → mlops-core-secrets) |
 | MLflow | — | без авторизации |
 
-## Быстрый старт (k3s)
+## Быстрый старт (k3s + Argo CD)
 
 ### Требования
 
 - [k3s](https://k3s.io/) + `kubectl`, StorageClass `local-path`
-- NVIDIA GPU + device plugin + `runtimeClassName: nvidia` (без GPU → `k8s/overlays/no-gpu`)
-- Docker (сборка образов)
-- **Не запускать microk8s и k3s одновременно** — конфликт портов 10248/10250
+- [Argo CD](https://argo-cd.readthedocs.io/) в кластере
+- NVIDIA GPU + device plugin (без GPU → `deploy/argocd/application-no-gpu.yaml`)
+- Образы в GHCR (CI на PR / Release workflow)
 
-### 1. Секреты
-
-```bash
-cp k8s/secrets.example.yaml k8s/secrets.yaml
-# HF_TOKEN, AUTH_BOOTSTRAP_PASSWORD, MINIO_*, GF_SECURITY_ADMIN_*
-```
-
-### 2. Registry (один раз)
+### Деплой
 
 ```bash
-./scripts/k3s-setup-registry.sh
-sudo cp deploy/k3s/registries.yaml /etc/rancher/k3s/registries.yaml
-sudo systemctl restart k3s
-# Docker: добавить deploy/k3s/daemon.json.snippet в /etc/docker/daemon.json
-sudo systemctl restart docker
+kubectl apply -f deploy/argocd/application-secrets.yaml
+kubectl apply -f deploy/argocd/application.yaml
+# CPU: application-no-gpu.yaml вместо application.yaml
+./scripts/k3s-copy-model.sh
 ```
 
-Подробнее: [deploy/k3s/README.md](deploy/k3s/README.md).
-
-### 3. Сборка и деплой
-
-```bash
-# опционально: другой публичный IP
-export MLOPS_PUBLIC_URL=http://83.221.210.29
-
-./scripts/k3s-build-images.sh   # docker build + push → localhost:5000
-./scripts/k3s-deploy.sh
-./scripts/k3s-copy-model.sh     # model.pt → PVC (первый раз)
-```
-
-Загрузка GPU-модели ~2–3 мин; readiness probe у `app` — до 3 мин.
-
-### 4. Проброс портов (доступ из интернета)
+Подробнее: [docs/deploy-argocd.md](docs/deploy-argocd.md).
 
 На роутере → `192.168.0.103` (LAN IP ноды):
 
@@ -142,8 +119,9 @@ dvc pull
 ```bash
 uv sync --group dev
 uv run pytest
-uv run black app tests
+uv run black app tests auth-service
 uv run pylint app
+uv run pylint auth-service/auth_service
 ```
 
 ### Docker Compose (legacy)
@@ -161,7 +139,7 @@ docker compose --env-file .env.docker.compose -f deploy/compose/docker-compose.y
 uv run cookiecutter cookiecutter/
 ```
 
-Подробнее: [cookiecutter/README.md](cookiecutter/README.md). Шаблон — в `cookiecutter/{{cookiecutter.project_slug}}/`. Корень репозитория — reference implementation с полным LLM-стеком.
+Подробнее: [cookiecutter/README.md](cookiecutter/README.md).
 
 ## Структура репозитория
 
@@ -171,46 +149,34 @@ uv run cookiecutter cookiecutter/
 ├── admin-ui/                 # React Admin Studio
 ├── chat-ui/                  # React Chat UI
 ├── k8s/
-│   ├── base/                 # Deployment, PVC, NodePort, Ingress
-│   └── overlays/no-gpu/      # CPU-only overlay
+│   ├── base/
+│   ├── components/ghcr-images/
+│   └── overlays/no-gpu/
 ├── deploy/
-│   ├── k3s/                  # registries.yaml, daemon.json
+│   ├── argocd/               # Argo CD Applications
+│   ├── helm/mlops-secrets/   # секреты (Helm, правки в UI)
 │   └── compose/              # Docker Compose для dev
-├── cookiecutter/             # Каркас нового проекта
-│   └── {{cookiecutter.project_slug}}/
 ├── scripts/
-│   ├── k3s-setup-registry.sh
-│   ├── k3s-build-images.sh
-│   ├── k3s-deploy.sh
-│   └── k3s-copy-model.sh
-├── docs/deploy-k3s.md
+│   ├── k3s-copy-model.sh     # model.pt → PVC
+│   └── dvc-setup.sh
+├── docs/deploy-argocd.md
 └── models/model.pt.dvc       # модель в MinIO через DVC
 ```
 
-## Скрипты k3s
+## CI / CD
 
-| Скрипт | Назначение |
-|--------|------------|
-| `k3s-setup-registry.sh` | Локальный registry `:5000` |
-| `k3s-build-images.sh` | Build + push всех образов |
-| `k3s-deploy.sh` | secrets + `kubectl apply -k k8s/` |
-| `k3s-copy-model.sh` | Копирование `model.pt` в PVC |
-
-Переменные: `MLOPS_PUBLIC_URL`, `MLOPS_REGISTRY`, `MLOPS_IMAGE_TAG`.
-
-## CI
-
-GitHub Actions (`.github/workflows/ci.yml`): black, pylint, build app-образа, `kubectl kustomize k8s/`.
+- **CI** (`.github/workflows/ci.yml`): lint, build, push образов в `ghcr.io/biircommunity/mlops-core-*`
+- **CD**: Argo CD — теги и секреты в UI, см. [docs/deploy-argocd.md](docs/deploy-argocd.md)
 
 ## Troubleshooting
 
 | Симптом | Решение |
 |---------|---------|
-| `ErrImageNeverPull` / `ImagePullBackOff` | `./scripts/k3s-build-images.sh`, проверить registry |
+| `ImagePullBackOff` | Тег в Argo CD → Kustomize → Images; образ опубликован в GHCR? |
 | `app` CrashLoop: `model.pt not found` | `./scripts/k3s-copy-model.sh` |
 | `Found no NVIDIA driver` | `runtimeClassName: nvidia` в `k8s/base/app.yaml`, device plugin |
 | UI 502 на `/api/*` | Пересобрать admin-ui/chat-ui (nginx без Docker DNS) |
 | k3s не стартует после restart | `sudo snap stop microk8s`, убить stale shims, `systemctl start k3s` |
 | Снаружи не открывается | Использовать IP сервера, не `localhost`; проброс портов на роутере |
 
-Документация: [docs/deploy-k3s.md](docs/deploy-k3s.md) · [k8s/README.md](k8s/README.md)
+Документация: [docs/deploy-argocd.md](docs/deploy-argocd.md)

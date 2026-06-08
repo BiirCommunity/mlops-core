@@ -4,20 +4,5 @@ kind: Kustomization
 resources:
   - base
 
-# Образы собираются: ./scripts/k3s-build-images.sh → push в локальный registry
-images:
-  - name: mlops-core-app
-    newName: localhost:5000/mlops-core-app
-    newTag: latest
-  - name: mlops-core-auth-service
-    newName: localhost:5000/mlops-core-auth-service
-    newTag: latest
-  - name: mlops-core-admin-ui
-    newName: localhost:5000/mlops-core-admin-ui
-    newTag: latest
-  - name: mlops-core-chat-ui
-    newName: localhost:5000/mlops-core-chat-ui
-    newTag: latest
-  - name: mlops-core-mlflow
-    newName: localhost:5000/mlops-core-mlflow
-    newTag: latest
+components:
+  - components/ghcr-images

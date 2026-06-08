@@ -8,6 +8,9 @@ permissions:
   contents: read
   packages: write
 
+env:
+  REGISTRY: ghcr.io
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -22,34 +25,67 @@ jobs:
       - name: Black
         run: uv run black --check .
 
-      - name: Pylint
+      - name: Pylint app
         run: uv run pylint app
+
+      - name: Pylint auth-service
+        run: uv run pylint auth-service/auth_service
 
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: mlops-core-app
+            context: .
+          - image: mlops-core-auth-service
+            context: auth-service
+          - image: mlops-core-admin-ui
+            context: admin-ui
+            build_args: VITE_MLFLOW_UI_URL=http://127.0.0.1:30500
+          - image: mlops-core-chat-ui
+            context: chat-ui
+          - image: mlops-core-mlflow
+            context: docker/mlflow
     steps:
       - uses: actions/checkout@v4
 
+      - name: Image owner (lowercase for GHCR)
+        id: owner
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build app image
+      - name: Build ${{ matrix.image }}
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ${{ matrix.context }}
           push: false
-          tags: mlops-core-app:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Validate k8s manifests
-        run: |
-          kubectl kustomize k8s/ > /dev/null
-          kubectl kustomize k8s/overlays/no-gpu/ > /dev/null
+          tags: ${{ env.REGISTRY }}/${{ steps.owner.outputs.owner }}/${{ matrix.image }}:ci
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
   publish:
-    needs: build
+    needs: [lint, build]
     runs-on: ubuntu-latest
     if: github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: mlops-core-app
+            context: .
+          - image: mlops-core-auth-service
+            context: auth-service
+          - image: mlops-core-admin-ui
+            context: admin-ui
+            build_args: VITE_MLFLOW_UI_URL=http://127.0.0.1:30500
+          - image: mlops-core-chat-ui
+            context: chat-ui
+          - image: mlops-core-mlflow
+            context: docker/mlflow
     steps:
       - uses: actions/checkout@v4
 
@@ -57,15 +93,14 @@ jobs:
         id: branch_tag
         run: |
           TAG="${GITHUB_HEAD_REF##*/}"
+          TAG="$(echo "${TAG}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_HEAD_REF: ${{ github.head_ref }}
 
-      - name: Image name (lowercase for GHCR)
-        id: image
-        run: |
-          REPO_LOWER=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
-          echo "name=ghcr.io/${REPO_LOWER}" >> "$GITHUB_OUTPUT"
+      - name: Image owner (lowercase for GHCR)
+        id: owner
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -75,11 +110,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Push ${{ matrix.image }}
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ${{ matrix.context }}
           push: true
-          tags: ${{ steps.image.outputs.name }}:${{ steps.branch_tag.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ${{ env.REGISTRY }}/${{ steps.owner.outputs.owner }}/${{ matrix.image }}:${{ steps.branch_tag.outputs.tag }}
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}

@@ -4,9 +4,14 @@ kind: Kustomization
 resources:
   - ../../base
 
+components:
+  - ../../components/ghcr-images
+
 patches:
   - path: patch-config-cpu.yaml
   - patch: |-
+      - op: remove
+        path: /spec/template/spec/runtimeClassName
       - op: remove
         path: /spec/template/spec/containers/0/resources/requests/nvidia.com~1gpu
       - op: remove

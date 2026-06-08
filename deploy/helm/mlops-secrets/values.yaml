@@ -1,0 +1,12 @@
+# Значения по умолчанию — без секретов. Задайте реальные значения в Argo CD UI:
+# Application mlops-core-secrets → Edit → Helm → Parameters
+
+secrets:
+  hfToken: ""
+  accessToken: changeme-set-strong-token
+  inferenceApiKey: changeme-set-inference-api-key
+  authBootstrapPassword: changeme-admin
+  minioAccessKey: minioadmin
+  minioSecretKey: minioadmin
+  grafanaAdminUser: admin
+  grafanaAdminPassword: admin
