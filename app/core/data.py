@@ -8,18 +8,7 @@ from app.core.transformer import Batch
 
 
 class TextDataset(Dataset):
-    """
-    Простой текстовый датасет для language modeling.
-
-    Логика:
-      1. Читаем весь файл как одну строку (UTF‑8).
-      2. Токенизируем его HuggingFace‑токенизатором.
-      3. Режем на последовательности длиной `seq_len + 1`.
-
-    Каждая последовательность используется как:
-      - первые `seq_len` токенов — вход,
-      - сдвинутая версия — целевые токены.
-    """
+    """Текстовый датасет для language modeling: файл → токены → чанки длиной seq_len+1."""
 
     def __init__(
         self,
@@ -31,12 +20,9 @@ class TextDataset(Dataset):
         self.tokenizer = tokenizer
         self.seq_len = seq_len
 
-        # Читаем файл целиком и токенизируем его.
         text = self.path.read_text(encoding="utf-8")
-        # Один длинный ряд токенов: [N]
         input_ids = tokenizer.encode(text, return_tensors="pt").squeeze(0)
 
-        # Сколько полных последовательностей длиной (seq_len + 1) мы можем взять.
         n_full = (input_ids.shape[0] - 1) // self.seq_len
         self.chunks: List[torch.Tensor] = []
         for i in range(n_full):
@@ -45,11 +31,9 @@ class TextDataset(Dataset):
             self.chunks.append(input_ids[start:end])
 
     def __len__(self) -> int:
-        # Количество доступных чанков.
         return len(self.chunks)
 
     def __getitem__(self, idx: int) -> torch.Tensor:
-        # Возвращаем последовательность токенов длиной (seq_len + 1).
         return self.chunks[idx]
 
 
@@ -57,28 +41,14 @@ def collate_lm(
     batch_tensors: Iterable[torch.Tensor],
     device: torch.device,
 ) -> Batch:
-    """
-    Коллатор для задачи language modeling.
-
-    На вход:
-        список тензоров [seq_len + 1] (каждый — пример).
-
-    На выход:
-        Batch с:
-        - input_ids:     [B, seq_len]   — все токены кроме последнего;
-        - target_tokens: [B, seq_len]   — все токены кроме первого;
-        - loss_masks:    [B, seq_len]   — единицы (считаем loss на каждом токене).
-    """
     tensors = list(batch_tensors)
     assert len(tensors) > 0
 
-    # T = tensors[0].shape[0]
     src_list = [t[:-1] for t in tensors]
     tgt_list = [t[1:] for t in tensors]
 
-    # Склеиваем примеры в батч по первой размерности.
-    src = torch.stack(src_list, dim=0).to(device)  # [B, T-1]
-    tgt = torch.stack(tgt_list, dim=0).to(device)  # [B, T-1]
+    src = torch.stack(src_list, dim=0).to(device)
+    tgt = torch.stack(tgt_list, dim=0).to(device)
     mask = torch.ones_like(tgt, dtype=torch.float32, device=device)
 
     return Batch(
@@ -97,16 +67,8 @@ def create_dataloader(  # pylint: disable=too-many-arguments, too-many-positiona
     shuffle: bool = True,
     dataset_fraction: float = 1.0,
 ) -> DataLoader:
-    """
-    Построить DataLoader для обучения языковой модели.
-
-    dataset_fraction:
-        доля датасета (0.1 = 10%)
-    """
-
     dataset = TextDataset(path, tokenizer=tokenizer, seq_len=seq_len)
 
-    # Ограничиваем размер датасета
     if dataset_fraction < 1.0:
         n_samples = int(len(dataset) * dataset_fraction)
         indices = torch.randperm(len(dataset))[:n_samples]

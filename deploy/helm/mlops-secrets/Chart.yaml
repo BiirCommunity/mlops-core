@@ -1,0 +1,5 @@
+apiVersion: v2
+name: mlops-secrets
+description: Application secrets for mlops-core (values editable in Argo CD UI)
+type: application
+version: 0.1.0

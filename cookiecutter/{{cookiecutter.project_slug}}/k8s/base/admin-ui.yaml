@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-ui
+  namespace: {{ cookiecutter.namespace }}
+  labels:
+    app: admin-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-ui
+  template:
+    metadata:
+      labels:
+        app: admin-ui
+    spec:
+      containers:
+        - name: admin-ui
+          image: {{ cookiecutter.project_slug }}-admin-ui:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-ui
+  namespace: {{ cookiecutter.namespace }}
+spec:
+  selector:
+    app: admin-ui
+  ports:
+    - port: 8080
+      targetPort: 8080

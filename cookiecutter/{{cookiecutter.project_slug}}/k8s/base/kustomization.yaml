@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: {{ cookiecutter.namespace }}
+
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - configmap.yaml
+  - redis.yaml
+  - minio.yaml
+  - minio-init-job.yaml
+  - mlflow.yaml
+{% if cookiecutter.use_auth_service == "yes" %}
+  - auth-service.yaml
+{% endif %}
+  - app.yaml
+  - admin-ui.yaml
+  - chat-ui.yaml
+{% if cookiecutter.use_monitoring == "yes" %}
+  - prometheus.yaml
+  - grafana.yaml
+{% endif %}
+  - ingress.yaml
+  - nodeports-observability.yaml
+
+{% if cookiecutter.use_monitoring == "yes" %}
+configMapGenerator:
+  - name: grafana-dashboard-files
+    namespace: {{ cookiecutter.namespace }}
+    files:
+      - app.json=grafana/dashboards/app.json
+{% endif %}

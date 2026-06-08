@@ -1,0 +1,6 @@
+[core]
+    remote = minio
+['remote "minio"']
+    url = s3://mlops-models/dvc
+    endpointurl = http://127.0.0.1:9000
+    access_key_id = minioadmin

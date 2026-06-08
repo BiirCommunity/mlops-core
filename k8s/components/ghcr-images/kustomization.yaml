@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# Образы в GHCR. Тег по умолчанию latest — переопределяется в Argo CD (kustomize.images).
+images:
+  - name: mlops-core-app
+    newName: ghcr.io/biircommunity/mlops-core-app
+    newTag: latest
+  - name: mlops-core-auth-service
+    newName: ghcr.io/biircommunity/mlops-core-auth-service
+    newTag: latest
+  - name: mlops-core-admin-ui
+    newName: ghcr.io/biircommunity/mlops-core-admin-ui
+    newTag: latest
+  - name: mlops-core-chat-ui
+    newName: ghcr.io/biircommunity/mlops-core-chat-ui
+    newTag: latest
+  - name: mlops-core-mlflow
+    newName: ghcr.io/biircommunity/mlops-core-mlflow
+    newTag: latest

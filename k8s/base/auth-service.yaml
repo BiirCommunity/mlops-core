@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: mlops
+  labels:
+    app: auth-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: auth-service
+          image: mlops-core-auth-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8090
+          envFrom:
+            - configMapRef:
+                name: mlops-config
+          env:
+            - name: AUTH_BOOTSTRAP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mlops-secrets
+                  key: AUTH_BOOTSTRAP_PASSWORD
+          volumeMounts:
+            - name: auth-data
+              mountPath: /data
+          resources:
+            requests:
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: auth-data
+          persistentVolumeClaim:
+            claimName: auth-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: mlops
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - port: 8090
+      targetPort: 8090

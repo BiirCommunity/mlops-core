@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: {{ cookiecutter.namespace }}
+  labels:
+    app: app
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+{% if cookiecutter.include_gpu == "yes" %}
+      runtimeClassName: nvidia
+{% endif %}
+      containers:
+        - name: app
+          image: {{ cookiecutter.project_slug }}-app:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: {{ cookiecutter.project_slug }}-config
+          env:
+            - name: INFERENCE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ cookiecutter.project_slug }}-secrets
+                  key: INFERENCE_API_KEY
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ cookiecutter.project_slug }}-secrets
+                  key: MINIO_ACCESS_KEY
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ cookiecutter.project_slug }}-secrets
+                  key: MINIO_SECRET_KEY
+          volumeMounts:
+            - name: models
+              mountPath: /models
+            - name: data
+              mountPath: /app/data
+          resources:
+            requests:
+{% if cookiecutter.include_gpu == "yes" %}
+              memory: 4Gi
+              cpu: "1"
+              nvidia.com/gpu: "1"
+            limits:
+              memory: 8Gi
+              cpu: "2"
+              nvidia.com/gpu: "1"
+{% else %}
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+{% endif %}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: models-pvc
+        - name: data
+          persistentVolumeClaim:
+            claimName: data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: {{ cookiecutter.namespace }}
+spec:
+  selector:
+    app: app
+  ports:
+    - port: 8080
+      targetPort: 8080

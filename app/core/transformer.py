@@ -7,9 +7,7 @@ from torch import nn
 import torch.nn.functional as F
 
 
-# Configuration
 class SeqModelingBlockType(StrEnum):
-    """Type of sequence modeling block."""
 
     self_attention = "self_attention"
 
@@ -17,11 +15,7 @@ class SeqModelingBlockType(StrEnum):
 # pylint: disable=too-many-instance-attributes
 @dataclass(unsafe_hash=True, eq=True)
 class ModelConfig:
-    """
-    Minimal model configuration compatible with original architecture.
-    """
 
-    # Core
     name: str = "unnamed"
     vocab_size: int = 32000
     hidden_size: int = 768
@@ -30,20 +24,16 @@ class ModelConfig:
     num_attention_heads: int = 12
     output_size: int = 32000
 
-    # Sequence
     mini_batch_size: int = 1024
     sliding_window_size: int = 1024
     seq_len: int = 131072
 
-    # Normalization
     rms_norm_eps: float = 1e-6
     initializer_range: float = 0.02
 
-    # Special tokens
     bos_token_id: int = 1
     eos_token_id: int = 2
 
-    # Dropout
     resid_pdrop: float = 0.0
     embd_pdrop: float = 0.0
     attn_pdrop: float = 0.0
@@ -76,10 +66,8 @@ class ModelConfig:
         self.seq_modeling_block_type = SeqModelingBlockType(self.seq_modeling_block)
 
 
-# Batch and helpers
 @dataclass
 class Batch:
-    """Minimal batch container."""
 
     input_ids: torch.Tensor
     target_tokens: torch.Tensor
@@ -119,23 +107,19 @@ _DTYPE_MAP: dict[str, torch.dtype] = {
 
 
 def get_torch_dtype(name: str) -> torch.dtype:
-    """Convert string dtype name to torch.dtype."""
     return _DTYPE_MAP[name]
 
 
 def promote_dtype(*tensors: torch.Tensor, dtype: torch.dtype) -> list[torch.Tensor]:
-    """Cast all tensors to the given dtype."""
     return [t.to(dtype) for t in tensors]
 
 
-# RoPE utilities
 def precompute_freqs_cis(
     dim: int,
     end: int,
     theta: float = 10000.0,
     dtype: torch.dtype = torch.float32,
 ) -> torch.Tensor:
-    """Precompute RoPE complex frequencies."""
     freqs = 1.0 / (theta ** (torch.arange(0, dim, 2, dtype=dtype)[: dim // 2] / dim))
     t = torch.arange(end, dtype=dtype)
     freqs = torch.outer(t, freqs)
@@ -143,7 +127,6 @@ def precompute_freqs_cis(
 
 
 def apply_rotary_emb(x: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
-    """Apply rotary embeddings."""
     B, T, H, _ = x.shape
     x = x.reshape(B, T, H, -1, 2)
     x_c = torch.view_as_complex(x)
@@ -152,9 +135,7 @@ def apply_rotary_emb(x: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
     return torch.view_as_real(x_c * freqs_cis).reshape(B, T, H, -1)
 
 
-# Linear layer with normal init
 class NormalLinear(nn.Module):
-    """Linear layer with normal initialization and no bias."""
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
@@ -181,10 +162,8 @@ class NormalLinear(nn.Module):
         return x @ weight
 
 
-# Attention
 # pylint: disable=too-many-instance-attributes
 class AttentionBase(nn.Module):
-    """Base class for attention variants."""
 
     def __init__(self, config: ModelConfig) -> None:
         super().__init__()
@@ -302,7 +281,6 @@ class AttentionBase(nn.Module):
 
 # pylint: disable=arguments-differ,too-many-locals
 class Attention(AttentionBase):
-    """Full causal attention with KV-cache support."""
 
     def forward(
         self,
@@ -361,9 +339,7 @@ class Attention(AttentionBase):
         return k_new, v_new
 
 
-# Feed‑forward (SwiGLU)
 class SwiGLUMLP(nn.Module):
-    """SwiGLU feed-forward block."""
 
     def __init__(self, config: ModelConfig) -> None:
         super().__init__()
@@ -395,10 +371,8 @@ class SwiGLUMLP(nn.Module):
         return self.dropout(self.w2(F.silu(self.w1(x)) * self.w3(x)))
 
 
-# Prime storage (TTT support)
 # pylint: disable=abstract-method
 class PrimeStorage(nn.Module):
-    """Holds prime FFN layers for TTT suffix blocks."""
 
     def __init__(self, config: ModelConfig) -> None:
         super().__init__()
@@ -423,10 +397,8 @@ class PrimeStorage(nn.Module):
         )
 
 
-# Transformer Block
 # pylint: disable=too-many-instance-attributes
 class Block(nn.Module):
-    """Single transformer block with optional prime FFN."""
 
     def __init__(
         self,
@@ -514,7 +486,6 @@ class Block(nn.Module):
         return hidden_states, new_state
 
 
-# Block collection and Transformer model
 @dataclass
 class BaseModelOutput:
     last_hidden_state: torch.Tensor
@@ -522,7 +493,6 @@ class BaseModelOutput:
 
 
 class BlockCollection(nn.Module):
-    """Flat stack of transformer blocks."""
 
     def __init__(self, config: ModelConfig) -> None:
         super().__init__()
@@ -549,7 +519,6 @@ class BlockCollection(nn.Module):
 
 
 class TransformerModel(nn.Module):
-    """Transformer backbone: embeddings + blocks + final norm."""
 
     def __init__(self, config: ModelConfig) -> None:
         super().__init__()
@@ -576,7 +545,6 @@ class TransformerModel(nn.Module):
         )
 
 
-# Causal LM wrapper
 @dataclass
 class CausalLMOutput:
     last_hidden_states: torch.Tensor
@@ -585,7 +553,6 @@ class CausalLMOutput:
 
 
 class CausalLM(nn.Module):
-    """Language model with optional tied embeddings."""
 
     def __init__(self, config: ModelConfig) -> None:
         super().__init__()
@@ -627,13 +594,11 @@ class CausalLM(nn.Module):
         )
 
 
-# Loss functions
 def cross_entropy_loss_and_accuracy(
     logits: torch.Tensor,
     tokens: torch.Tensor,
     valid: Optional[torch.Tensor] = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Cross-entropy loss with mask support."""
     if valid is None:
         valid = torch.ones(tokens.shape, dtype=torch.float32, device=tokens.device)
     valid = valid.float()
@@ -655,7 +620,6 @@ def token_log_probs(
     logits: torch.Tensor,
     targets: torch.Tensor,
 ) -> torch.Tensor:
-    """Compute log probabilities of target tokens."""
     return (
         F.log_softmax(logits, dim=-1)
         .gather(-1, targets.long().unsqueeze(-1))

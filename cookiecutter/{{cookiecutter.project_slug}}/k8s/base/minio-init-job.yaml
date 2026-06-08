@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+  namespace: {{ cookiecutter.namespace }}
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:latest
+          env:
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ cookiecutter.project_slug }}-secrets
+                  key: MINIO_ACCESS_KEY
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ cookiecutter.project_slug }}-secrets
+                  key: MINIO_SECRET_KEY
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              until mc alias set local http://minio:9000 "$MINIO_ACCESS_KEY" "$MINIO_SECRET_KEY"; do
+                echo "waiting for minio..."
+                sleep 2
+              done
+              mc mb --ignore-existing local/{{ cookiecutter.minio_bucket_models }}
+              mc mb --ignore-existing local/{{ cookiecutter.minio_bucket_datasets }}
+              echo "MinIO buckets ready"

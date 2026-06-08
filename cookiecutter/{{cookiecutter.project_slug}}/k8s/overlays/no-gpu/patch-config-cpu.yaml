@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ cookiecutter.project_slug }}-config
+  namespace: {{ cookiecutter.namespace }}
+data:
+  DEVICE: "cpu"

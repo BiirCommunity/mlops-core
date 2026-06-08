@@ -1,0 +1,112 @@
+services:
+  app:
+    build: .
+    container_name: app
+    env_file:
+      - .env.docker.compose
+    environment:
+      - RUN_MODE=WEBSERVER
+      - FASTAPI_HOST=0.0.0.0
+      - FASTAPI_PORT=8080
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-minio:9000}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
+      - MINIO_SECURE=${MINIO_SECURE:-0}
+      - MINIO_BUCKET_MODELS=${MINIO_BUCKET_MODELS:-{{ cookiecutter.minio_bucket_models }}}
+      - MINIO_BUCKET_DATASETS=${MINIO_BUCKET_DATASETS:-{{ cookiecutter.minio_bucket_datasets }}}
+      - MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL:-http://minio:9000}
+      - DVC_BUCKET=${DVC_BUCKET:-{{ cookiecutter.minio_bucket_models }}}
+      - DVC_PREFIX=${DVC_PREFIX:-dvc}
+{% if cookiecutter.use_auth_service == "yes" %}
+      - AUTH_SERVICE_URL=http://auth-service:8090
+{% endif %}
+      - INFERENCE_API_KEY=${INFERENCE_API_KEY:-changeme-set-inference-api-key}
+    volumes:
+      - ./models:/models
+      - ./data:/app/data
+    ports:
+      - "${PORT:-8080}:8080"
+    depends_on:
+      - redis
+      - minio
+      - mlflow
+{% if cookiecutter.include_gpu == "yes" %}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+{% endif %}
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  mlflow:
+    build: ./docker/mlflow
+    container_name: mlflow
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "5000:5000"
+    depends_on:
+      - minio
+
+{% if cookiecutter.use_auth_service == "yes" %}
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    ports:
+      - "8090:8090"
+    volumes:
+      - auth-data:/data
+{% endif %}
+
+{% if cookiecutter.use_monitoring == "yes" %}
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/prometheus-rules.yml:/etc/prometheus/prometheus-rules.yml:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./grafana-provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+{% endif %}
+
+volumes:
+  minio-data:
+{% if cookiecutter.use_auth_service == "yes" %}
+  auth-data:
+{% endif %}
