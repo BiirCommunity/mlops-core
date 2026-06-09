@@ -57,6 +57,10 @@ class InteractionLog:
             if not stripped:
                 continue
             payload = json.loads(stripped)
+            if payload.get("event") == "rating_update":
+                continue
+            if "prompt" not in payload or "response" not in payload:
+                continue
             record = InteractionRecord(**payload)
             rows.append(record)
         if len(rows) > self.max_memory:
