@@ -168,15 +168,5 @@ uv run cookiecutter cookiecutter/
 - **CI** (`.github/workflows/ci.yml`): lint, build, push образов в `ghcr.io/biircommunity/mlops-core-*`
 - **CD**: Argo CD — теги и секреты в UI, см. [docs/deploy-argocd.md](docs/deploy-argocd.md)
 
-## Troubleshooting
 
-| Симптом | Решение |
-|---------|---------|
-| `ImagePullBackOff` | Тег в Argo CD → Kustomize → Images; образ опубликован в GHCR? |
-| `app` CrashLoop: `model.pt not found` | `./scripts/k3s-copy-model.sh` |
-| `Found no NVIDIA driver` | `runtimeClassName: nvidia` в `k8s/base/app.yaml`, device plugin |
-| UI 502 на `/api/*` | Пересобрать admin-ui/chat-ui (nginx без Docker DNS) |
-| k3s не стартует после restart | `sudo snap stop microk8s`, убить stale shims, `systemctl start k3s` |
-| Снаружи не открывается | Использовать IP сервера, не `localhost`; проброс портов на роутере |
-
-Документация: [docs/deploy-argocd.md](docs/deploy-argocd.md)
+Deploy: [docs/deploy-argocd.md](docs/deploy-argocd.md)
