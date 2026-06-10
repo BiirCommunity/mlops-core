@@ -13,6 +13,7 @@ data:
   MINIO_CONSOLE_URL: {{ printf "https://%s/minio" .Values.ingress.domain | quote }}
   MINIO_PUBLIC_API_URL: {{ printf "https://%s/minio-api" .Values.ingress.domain | quote }}
   MINIO_BROWSER_REDIRECT_URL: {{ printf "https://%s/minio/" .Values.ingress.domain | quote }}
-  MINIO_SERVER_URL: {{ printf "https://%s/minio-api" .Values.ingress.domain | quote }}
+  # Console validates IAM against MINIO_SERVER_URL; external /minio-api breaks login behind Traefik.
+  MINIO_SERVER_URL: "http://minio:9000"
   ADMIN_UI_ORIGINS: {{ printf "https://%s/admin,https://%s/chat,http://localhost:30000,http://127.0.0.1:30000,http://localhost:30100,http://127.0.0.1:30100" .Values.ingress.domain .Values.ingress.domain | quote }}
 {{- end }}

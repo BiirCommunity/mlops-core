@@ -112,7 +112,8 @@ Helm генерирует:
 | `/grafana` | `GF_SERVER_SERVE_FROM_SUB_PATH` + `GF_SERVER_ROOT_URL` |
 | `/mlflow` | `MLFLOW_STATIC_PREFIX=/mlflow` |
 | `/minio` | Traefik strip prefix + `MINIO_BROWSER_REDIRECT_URL` (console) |
-| `/minio-api` | Traefik strip prefix + `MINIO_SERVER_URL` (S3 API) |
+| `/minio-api` | Traefik strip prefix + `MINIO_PUBLIC_API_URL` (внешний S3) |
+| `/minio` | `MINIO_BROWSER_REDIRECT_URL`; `MINIO_SERVER_URL` = `http://minio:9000` (внутренний API для Console login) |
 | `/argocd` | `server.rootpath` в Argo CD |
 
 После изменений UI — пересобрать `mlops-core-admin-ui` и `mlops-core-chat-ui`, Sync `mlops-core-secrets` и `mlops-core`.
