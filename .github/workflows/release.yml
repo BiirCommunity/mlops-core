@@ -184,12 +184,12 @@ jobs:
           echo "Waiting for UI/API deployments..."
           for dep in admin-ui chat-ui auth-service mlflow; do
             "${CLI[@]}" app wait "${ARGOCD_APP_NAME}" \
-              --resource "apps:Deployment:mlops:${dep}" --health --timeout 600
+              --resource "apps:Deployment:${dep}" --health --timeout 600
           done
 
           echo "Waiting for app (GPU, large image)..."
           if ! "${CLI[@]}" app wait "${ARGOCD_APP_NAME}" \
-            --resource "apps:Deployment:mlops:app" --health --timeout 2400; then
+            --resource "apps:Deployment:app" --health --timeout 2400; then
             echo "::warning::app deployment not Healthy yet — check GPU, image pull, readiness probe"
             "${CLI[@]}" app get "${ARGOCD_APP_NAME}" --show-operation
             exit 1
