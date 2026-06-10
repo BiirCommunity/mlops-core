@@ -28,6 +28,18 @@ spec:
             - configMapRef:
                 name: mlops-config
           env:
+            - name: ADMIN_UI_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: mlops-platform-config
+                  key: ADMIN_UI_ORIGINS
+                  optional: true
+            - name: MINIO_CONSOLE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: mlops-platform-config
+                  key: MINIO_CONSOLE_URL
+                  optional: true
             - name: HF_TOKEN
               valueFrom:
                 secretKeyRef:

@@ -81,6 +81,103 @@ argocd app sync mlops-core
 
 Ingress Traefik: `/admin`, `/chat`, `/api`, `/mlflow`, `/grafana` (порт 80).
 
+## Ingress, TLS (свои сертификаты) и GitHub webhook
+
+### Домен — в Helm-параметрах (как секреты)
+
+Ingress **не умеет** читать host из Secret напрямую. Домен задаётся в Application **mlops-core-secrets** → Edit → Helm → Parameters:
+
+| Parameter | Пример | Назначение |
+|-----------|--------|------------|
+| `ingress.domain` | `adaptive-llm.ru` | Host в Ingress mlops и Argo CD |
+| `ingress.tlsSecretName` | `adaptive-llm-tls` | Имя Secret с `tls.crt` / `tls.key` |
+| `ingress.enabled` | `true` | Создавать Ingress |
+
+Файл по умолчанию: `deploy/helm/mlops-secrets/values.yaml`.
+
+Helm генерирует:
+- Ingress для каждого path + Traefik Middleware (strip/rewrite)
+- Ingress `argocd-server` (namespace `argocd`)
+- ConfigMap `mlops-platform-config` (`DOMAIN`, `GRAFANA_ROOT_URL`, `ADMIN_UI_ORIGINS`, …)
+
+### Path routing
+
+| URL | Как работает |
+|-----|----------------|
+| `/admin`, `/chat` | Traefik strip prefix + Vite `base` + React `basename` |
+| `/api/*` | Traefik rewrite → `app` (`/training/*`, `/v1/*`) или `auth-service` |
+| `/grafana` | `GF_SERVER_SERVE_FROM_SUB_PATH` + `GF_SERVER_ROOT_URL` |
+| `/mlflow` | `MLFLOW_STATIC_PREFIX=/mlflow` |
+| `/minio` | Traefik strip prefix + `MINIO_BROWSER_REDIRECT_URL` (console) |
+| `/minio-api` | Traefik strip prefix + `MINIO_SERVER_URL` (S3 API) |
+| `/argocd` | `server.rootpath` в Argo CD |
+
+После изменений UI — пересобрать `mlops-core-admin-ui` и `mlops-core-chat-ui`, Sync `mlops-core-secrets` и `mlops-core`.
+
+### Один домен для всего
+
+| URL | Сервис |
+|-----|--------|
+| `https://<domain>/admin` | admin-ui |
+| `https://<domain>/chat` | chat-ui |
+| `https://<domain>/api` | API |
+| `https://<domain>/mlflow` | MLflow |
+| `https://<domain>/minio` | MinIO Console |
+| `https://<domain>/minio-api` | MinIO S3 API |
+| `https://<domain>/argocd` | Argo CD UI |
+| `https://<domain>/argocd/api/webhook` | GitHub webhook |
+
+`server.rootpath: /argocd` — в `deploy/argocd/server-insecure.yaml` (apply один раз).
+
+### TLS-сертификат (файлы, не в Git)
+
+Secret с ключами создаётся вручную **в обоих namespace** (имя = `ingress.tlsSecretName`):
+
+```bash
+kubectl -n mlops create secret tls adaptive-llm-tls --cert=fullchain.pem --key=privkey.pem
+kubectl -n argocd create secret tls adaptive-llm-tls --cert=fullchain.pem --key=privkey.pem
+```
+
+Сами `.pem` в Git/Helm values не кладём — только имя secret.
+
+### Первый запуск
+
+```bash
+kubectl apply -f deploy/argocd/server-insecure.yaml
+kubectl apply -f deploy/argocd/application-secrets.yaml
+# TLS secrets + параметры ingress.domain в UI → Sync mlops-core-secrets
+```
+
+### GitHub → Argo CD (webhook)
+
+GitHub должен достучаться до `https://<argocd-домен>/api/webhook` (публичный IP, проброс 443 или туннель).
+
+1. GitHub → **Settings** → **Webhooks** → **Add webhook**
+2. **Payload URL:** `https://<ingress.domain>/argocd/api/webhook` (или `WEBHOOK_URL` из ConfigMap `mlops-platform-config`)
+3. **Content type:** `application/json`
+4. **Events:** Push
+
+Опционально secret в Argo CD:
+
+```bash
+kubectl -n argocd patch secret argocd-secret \
+  -p '{"stringData":{"webhook.github.secret":"ВАШ_СЕКРЕТ"}}'
+```
+
+Auto-sync уже в `deploy/argocd/application.yaml`. Для приватного репо — credentials в Argo CD → Settings → Repositories.
+
+### Let's Encrypt (опционально)
+
+Если позже понадобится автоматический cert — `deploy/ingress/cluster-issuer.yaml` + cert-manager. Для своих CA не используйте.
+
+### Файлы ingress/TLS
+
+| Файл | Назначение |
+|------|------------|
+| `deploy/argocd/server-insecure.yaml` | TLS на Traefik, `server.rootpath` |
+| `deploy/helm/mlops-secrets/` | Секреты + **ingress.domain** + Ingress |
+| `deploy/ingress/cluster-issuer.yaml` | Только Let's Encrypt (опционально) |
+
 ## Файлы
 
 | Файл | Назначение |
@@ -88,5 +185,5 @@ Ingress Traefik: `/admin`, `/chat`, `/api`, `/mlflow`, `/grafana` (порт 80).
 | `deploy/argocd/application-secrets.yaml` | Секреты (Helm) |
 | `deploy/argocd/application.yaml` | Main app, GPU |
 | `deploy/argocd/application-no-gpu.yaml` | Main app, CPU |
-| `deploy/helm/mlops-secrets/` | Helm chart секретов |
+| `deploy/helm/mlops-secrets/` | Helm: секреты, домен, Ingress |
 | `k8s/` | Kustomize манифесты |

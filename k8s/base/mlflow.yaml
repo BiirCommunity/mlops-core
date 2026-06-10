@@ -25,6 +25,8 @@ spec:
             - configMapRef:
                 name: mlops-config
           env:
+            - name: MLFLOW_STATIC_PREFIX
+              value: "/mlflow"
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:

@@ -7,12 +7,15 @@ VOLUME ["/mlflow"]
 
 ENV MLFLOW_S3_ENDPOINT_URL=http://minio:9000 \
     AWS_ACCESS_KEY_ID=minioadmin \
-    AWS_SECRET_ACCESS_KEY=minioadmin
+    AWS_SECRET_ACCESS_KEY=minioadmin \
+    MLFLOW_STATIC_PREFIX=/mlflow
 
 EXPOSE 5000
 
-CMD mlflow server \
+CMD sh -c 'extra=""; if [ -n "$MLFLOW_STATIC_PREFIX" ]; then extra="--static-prefix $MLFLOW_STATIC_PREFIX"; fi; \
+  exec mlflow server \
     --host 0.0.0.0 \
     --port 5000 \
     --backend-store-uri sqlite:////mlflow/mlflow.db \
-    --default-artifact-root s3://mlops-models/mlflow-artifacts/
+    --default-artifact-root s3://mlops-models/mlflow-artifacts/ \
+    $extra'
