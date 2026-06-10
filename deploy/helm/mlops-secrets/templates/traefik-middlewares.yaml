@@ -1,0 +1,81 @@
+{{- if .Values.ingress.enabled }}
+{{- $ns := .Release.Namespace }}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-admin
+  namespace: {{ $ns }}
+spec:
+  stripPrefix:
+    prefixes:
+      - /admin
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-chat
+  namespace: {{ $ns }}
+spec:
+  stripPrefix:
+    prefixes:
+      - /chat
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-api
+  namespace: {{ $ns }}
+spec:
+  stripPrefix:
+    prefixes:
+      - /api
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: api-to-training
+  namespace: {{ $ns }}
+spec:
+  replacePathRegex:
+    regex: "^/api/(.*)"
+    replacement: "/training/${1}"
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: api-chat-completions
+  namespace: {{ $ns }}
+spec:
+  replacePath:
+    path: /v1/chat/completions
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-minio
+  namespace: {{ $ns }}
+spec:
+  stripPrefix:
+    prefixes:
+      - /minio
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-minio-api
+  namespace: {{ $ns }}
+spec:
+  stripPrefix:
+    prefixes:
+      - /minio-api
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: api-chat-feedback
+  namespace: {{ $ns }}
+spec:
+  replacePath:
+    path: /v1/feedback
+{{- end }}

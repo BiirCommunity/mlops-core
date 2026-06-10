@@ -1,5 +1,5 @@
 apiVersion: v2
 name: mlops-secrets
-description: Application secrets for mlops-core (values editable in Argo CD UI)
+description: Secrets, ingress domain and TLS refs for mlops-core (Argo CD Helm parameters)
 type: application
 version: 0.1.0

@@ -1,5 +1,9 @@
-# Значения по умолчанию — без секретов. Задайте реальные значения в Argo CD UI:
-# Application mlops-core-secrets → Edit → Helm → Parameters
+# Задайте в Argo CD UI: Application mlops-core-secrets → Edit → Helm → Parameters
+
+ingress:
+  enabled: true
+  domain: adaptive-llm.ru
+  tlsSecretName: adaptive-llm-tls
 
 secrets:
   hfToken: ""

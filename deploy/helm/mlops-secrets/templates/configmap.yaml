@@ -1,0 +1,18 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mlops-platform-config
+  namespace: {{ .Release.Namespace }}
+data:
+  DOMAIN: {{ .Values.ingress.domain | quote }}
+  ARGOCD_URL: {{ printf "https://%s/argocd" .Values.ingress.domain | quote }}
+  WEBHOOK_URL: {{ printf "https://%s/argocd/api/webhook" .Values.ingress.domain | quote }}
+  GRAFANA_ROOT_URL: {{ printf "https://%s/grafana/" .Values.ingress.domain | quote }}
+  MLFLOW_UI_URL: {{ printf "https://%s/mlflow" .Values.ingress.domain | quote }}
+  MINIO_CONSOLE_URL: {{ printf "https://%s/minio" .Values.ingress.domain | quote }}
+  MINIO_PUBLIC_API_URL: {{ printf "https://%s/minio-api" .Values.ingress.domain | quote }}
+  MINIO_BROWSER_REDIRECT_URL: {{ printf "https://%s/minio/" .Values.ingress.domain | quote }}
+  MINIO_SERVER_URL: {{ printf "https://%s/minio-api" .Values.ingress.domain | quote }}
+  ADMIN_UI_ORIGINS: {{ printf "https://%s/admin,https://%s/chat,http://localhost:30000,http://127.0.0.1:30000,http://localhost:30100,http://127.0.0.1:30100" .Values.ingress.domain .Values.ingress.domain | quote }}
+{{- end }}
