@@ -127,7 +127,17 @@ Helm генерирует:
 | `https://<domain>/argocd` | Argo CD UI |
 | `https://<domain>/argocd/api/webhook` | GitHub webhook |
 
-`server.rootpath: /argocd` — в `deploy/argocd/server-insecure.yaml` (apply один раз).
+### Argo CD UI на `/argocd`
+
+```bash
+kubectl apply -f deploy/argocd/server-insecure.yaml
+kubectl apply -f deploy/argocd/argocd-server-subpath.yaml
+kubectl -n argocd rollout status deployment/argocd-server
+```
+
+Нужны **оба** `server.basehref` и `server.rootpath` — без `basehref` UI белый экран (JS грузится с `/` вместо `/argocd/`).
+
+URL: `https://<domain>/argocd/` (со слэшем в конце).
 
 ### TLS-сертификат (файлы, не в Git)
 

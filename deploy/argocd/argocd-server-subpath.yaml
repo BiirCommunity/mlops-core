@@ -1,0 +1,22 @@
+# Явные флаги subpath — после install.yaml и server-insecure.yaml:
+#   kubectl apply -f deploy/argocd/server-insecure.yaml
+#   kubectl apply -f deploy/argocd/argocd-server-subpath.yaml
+#   kubectl -n argocd rollout status deployment/argocd-server
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  template:
+    spec:
+      containers:
+        - name: argocd-server
+          args:
+            - /usr/local/bin/argocd-server
+            - --insecure
+            - --rootpath
+            - /argocd
+            - --basehref
+            - /argocd
