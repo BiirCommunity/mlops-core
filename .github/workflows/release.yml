@@ -153,18 +153,46 @@ jobs:
             --grpc-web
             --grpc-web-root-path "${ARGOCD_ROOT_PATH}")
 
-          SET_ARGS=()
-          for img in app auth-service admin-ui chat-ui mlflow; do
-            SET_ARGS+=(--kustomize-image "mlops-core-${img}=${REGISTRY}/${OWNER}/mlops-core-${img}:${TAG}")
-          done
-
           echo "Setting image tag ${TAG} on Application ${ARGOCD_APP_NAME}..."
-          "${CLI[@]}" app set "${ARGOCD_APP_NAME}" "${SET_ARGS[@]}"
+          PATCH=$(jq -n \
+            --arg tag "${TAG}" \
+            --arg owner "${OWNER}" \
+            --arg registry "${REGISTRY}" \
+            '{
+              spec: {
+                source: {
+                  kustomize: {
+                    images: [
+                      "\($registry)/\($owner)/mlops-core-app:\($tag)",
+                      "\($registry)/\($owner)/mlops-core-auth-service:\($tag)",
+                      "\($registry)/\($owner)/mlops-core-admin-ui:\($tag)",
+                      "\($registry)/\($owner)/mlops-core-chat-ui:\($tag)",
+                      "\($registry)/\($owner)/mlops-core-mlflow:\($tag)"
+                    ]
+                  }
+                }
+              }
+            }')
+          "${CLI[@]}" app patch "${ARGOCD_APP_NAME}" --type merge --patch "${PATCH}"
 
           echo "Syncing ${ARGOCD_APP_NAME}..."
           "${CLI[@]}" app sync "${ARGOCD_APP_NAME}" --prune --timeout 900
 
-          echo "Waiting for healthy..."
-          "${CLI[@]}" app wait "${ARGOCD_APP_NAME}" --health --timeout 900
+          echo "Waiting for sync..."
+          "${CLI[@]}" app wait "${ARGOCD_APP_NAME}" --sync --timeout 600
+
+          echo "Waiting for UI/API deployments..."
+          for dep in admin-ui chat-ui auth-service mlflow; do
+            "${CLI[@]}" app wait "${ARGOCD_APP_NAME}" \
+              --resource "apps:Deployment:mlops:${dep}" --health --timeout 600
+          done
+
+          echo "Waiting for app (GPU, large image)..."
+          if ! "${CLI[@]}" app wait "${ARGOCD_APP_NAME}" \
+            --resource "apps:Deployment:mlops:app" --health --timeout 2400; then
+            echo "::warning::app deployment not Healthy yet — check GPU, image pull, readiness probe"
+            "${CLI[@]}" app get "${ARGOCD_APP_NAME}" --show-operation
+            exit 1
+          fi
 
           "${CLI[@]}" app get "${ARGOCD_APP_NAME}"
