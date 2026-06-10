@@ -52,9 +52,15 @@ jobs:
             context: auth-service
           - image: mlops-core-admin-ui
             context: admin-ui
-            build_args: VITE_MLFLOW_UI_URL=http://127.0.0.1:30500
+            build_args: |
+              VITE_BASE_PATH=/admin/
+              VITE_MLFLOW_UI_URL=/mlflow
+              CACHEBUST=${{ github.sha }}
           - image: mlops-core-chat-ui
             context: chat-ui
+            build_args: |
+              VITE_BASE_PATH=/chat/
+              CACHEBUST=${{ github.sha }}
           - image: mlops-core-mlflow
             context: docker/mlflow
     steps:
@@ -89,9 +95,15 @@ jobs:
             context: auth-service
           - image: mlops-core-admin-ui
             context: admin-ui
-            build_args: VITE_MLFLOW_UI_URL=http://127.0.0.1:30500
+            build_args: |
+              VITE_BASE_PATH=/admin/
+              VITE_MLFLOW_UI_URL=/mlflow
+              CACHEBUST=${{ github.sha }}
           - image: mlops-core-chat-ui
             context: chat-ui
+            build_args: |
+              VITE_BASE_PATH=/chat/
+              CACHEBUST=${{ github.sha }}
           - image: mlops-core-mlflow
             context: docker/mlflow
     steps:
