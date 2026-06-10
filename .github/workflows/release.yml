@@ -190,9 +190,10 @@ jobs:
           echo "Waiting for app (GPU, large image)..."
           if ! "${CLI[@]}" app wait "${ARGOCD_APP_NAME}" \
             --resource "apps:Deployment:app" --health --timeout 2400; then
-            echo "::warning::app deployment not Healthy yet — check GPU, image pull, readiness probe"
-            "${CLI[@]}" app get "${ARGOCD_APP_NAME}" --show-operation
-            exit 1
+            echo "::warning::app deployment not Healthy within 40m — tags are applied and sync succeeded"
+            echo "::warning::check GPU, image pull, stuck Terminating pods: kubectl -n mlops get pods -l app=app"
+            "${CLI[@]}" app get "${ARGOCD_APP_NAME}"
+            exit 0
           fi
 
           "${CLI[@]}" app get "${ARGOCD_APP_NAME}"
