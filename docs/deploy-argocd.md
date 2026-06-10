@@ -176,6 +176,29 @@ kubectl -n argocd patch secret argocd-secret \
 
 Auto-sync уже в `deploy/argocd/application.yaml`. Для приватного репо — credentials в Argo CD → Settings → Repositories.
 
+### Release → Argo CD (автодеплой по tag)
+
+Workflow **Release** после push образов в GHCR вызывает Argo CD API и обновляет Application **mlops-core**.
+
+**GitHub → Settings → Secrets and variables → Actions → New repository secret:**
+
+| Secret | Значение |
+|--------|----------|
+| `ARGOCD_AUTH_TOKEN` | токен из Argo CD UI (Settings → Accounts → Generate token) |
+
+Argo CD должен быть доступен из GitHub Actions: `https://adaptive-llm.ru/argocd`.
+
+Запуск: **Actions → Release → Run workflow** → tag, например `v1.2.0`.
+
+Job `deploy-argo`:
+1. `argocd app set mlops-core --kustomize-image …:v1.2.0` (все 5 образов)
+2. `argocd app sync mlops-core --prune`
+3. `argocd app wait --health`
+
+Переменные в `.github/workflows/release.yml`: `ARGOCD_SERVER`, `ARGOCD_ROOT_PATH`, `ARGOCD_APP_NAME`.
+
+Для CPU-кластера замените `ARGOCD_APP_NAME` на `mlops-core-no-gpu` или добавьте второй job.
+
 ### Let's Encrypt (опционально)
 
 Если позже понадобится автоматический cert — `deploy/ingress/cluster-issuer.yaml` + cert-manager. Для своих CA не используйте.

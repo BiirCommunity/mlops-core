@@ -14,6 +14,10 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
+  ARGOCD_SERVER: adaptive-llm.ru
+  ARGOCD_ROOT_PATH: /argocd
+  ARGOCD_APP_NAME: mlops-core
+  ARGOCD_VERSION: v3.4.3
 
 jobs:
   lint:
@@ -114,3 +118,53 @@ jobs:
           build-args: ${{ matrix.build_args }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  deploy-argo:
+    needs: publish
+    runs-on: ubuntu-latest
+    env:
+      ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+    steps:
+      - name: Image owner (lowercase for GHCR)
+        id: owner
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Install Argo CD CLI
+        run: |
+          curl -sSL -o argocd \
+            "https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-amd64"
+          chmod +x argocd
+          ./argocd version --client
+
+      - name: Update mlops-core image tags in Argo CD
+        env:
+          TAG: ${{ inputs.tag }}
+          OWNER: ${{ steps.owner.outputs.owner }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ARGOCD_AUTH_TOKEN:-}" ]; then
+            echo "ARGOCD_AUTH_TOKEN secret is not set in GitHub Actions"
+            exit 1
+          fi
+
+          CLI=(./argocd
+            --server "${ARGOCD_SERVER}"
+            --auth-token "${ARGOCD_AUTH_TOKEN}"
+            --grpc-web
+            --grpc-web-root-path "${ARGOCD_ROOT_PATH}")
+
+          SET_ARGS=()
+          for img in app auth-service admin-ui chat-ui mlflow; do
+            SET_ARGS+=(--kustomize-image "mlops-core-${img}=${REGISTRY}/${OWNER}/mlops-core-${img}:${TAG}")
+          done
+
+          echo "Setting image tag ${TAG} on Application ${ARGOCD_APP_NAME}..."
+          "${CLI[@]}" app set "${ARGOCD_APP_NAME}" "${SET_ARGS[@]}"
+
+          echo "Syncing ${ARGOCD_APP_NAME}..."
+          "${CLI[@]}" app sync "${ARGOCD_APP_NAME}" --prune --timeout 900
+
+          echo "Waiting for healthy..."
+          "${CLI[@]}" app wait "${ARGOCD_APP_NAME}" --health --timeout 900
+
+          "${CLI[@]}" app get "${ARGOCD_APP_NAME}"
