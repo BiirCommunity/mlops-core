@@ -45,13 +45,16 @@ kustomize:
     - mlops-core-mlflow=ghcr.io/biircommunity/mlops-core-mlflow:v1.0.0
 ```
 
-Формат: `имя-из-kustomize=registry/образ:тег`. PR → тег = имя ветки, Release → тег релиза.
+Формат: полный путь образа после `components/ghcr-images`, например `ghcr.io/org/mlops-core-app:v1.0.0` (короткое имя `mlops-core-app=…` не сработает). PR → тег = имя ветки, Release → тег релиза.
 
 CLI:
 
 ```bash
-argocd app set mlops-core \
-  --kustomize-image mlops-core-app=ghcr.io/biircommunity/mlops-core-app:v1.0.0
+argocd app patch mlops-core --type merge --patch '{
+  "spec": {"source": {"kustomize": {"images": [
+    "ghcr.io/biircommunity/mlops-core-app:v1.0.0"
+  ]}}}}
+}'
 argocd app sync mlops-core
 ```
 
@@ -191,11 +194,13 @@ Argo CD должен быть доступен из GitHub Actions: `https://ada
 Запуск: **Actions → Release → Run workflow** → tag, например `v1.2.0`.
 
 Job `deploy-argo`:
-1. `argocd app set mlops-core --kustomize-image …:v1.2.0` (все 5 образов)
+1. `argocd app patch mlops-core --type merge` — полный список `spec.source.kustomize.images` (формат `ghcr.io/…/image:tag`, без дублей)
 2. `argocd app sync mlops-core --prune`
-3. `argocd app wait --health`
+3. `app wait --sync`, затем `--health` для UI/API, отдельно `app` (GPU, timeout 40 мин)
 
 Переменные в `.github/workflows/release.yml`: `ARGOCD_SERVER`, `ARGOCD_ROOT_PATH`, `ARGOCD_APP_NAME`.
+
+Job `minio-init` после завершения удаляется TTL-controller'ом — в `application.yaml` задан `ignoreDifferences` для `/status`, иначе Application остаётся OutOfSync.
 
 Для CPU-кластера замените `ARGOCD_APP_NAME` на `mlops-core-no-gpu` или добавьте второй job.
 

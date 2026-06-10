@@ -9,17 +9,23 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
+  ignoreDifferences:
+    - group: batch
+      kind: Job
+      name: minio-init
+      jsonPointers:
+        - /status
   source:
     repoURL: https://github.com/BiirCommunity/mlops-core.git
     targetRevision: main
     path: k8s/overlays/no-gpu
     kustomize:
       images:
-        - mlops-core-app=ghcr.io/biircommunity/mlops-core-app:latest
-        - mlops-core-auth-service=ghcr.io/biircommunity/mlops-core-auth-service:latest
-        - mlops-core-admin-ui=ghcr.io/biircommunity/mlops-core-admin-ui:latest
-        - mlops-core-chat-ui=ghcr.io/biircommunity/mlops-core-chat-ui:latest
-        - mlops-core-mlflow=ghcr.io/biircommunity/mlops-core-mlflow:latest
+        - ghcr.io/biircommunity/mlops-core-app:latest
+        - ghcr.io/biircommunity/mlops-core-auth-service:latest
+        - ghcr.io/biircommunity/mlops-core-admin-ui:latest
+        - ghcr.io/biircommunity/mlops-core-chat-ui:latest
+        - ghcr.io/biircommunity/mlops-core-mlflow:latest
   destination:
     server: https://kubernetes.default.svc
     namespace: mlops
