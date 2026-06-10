@@ -11,7 +11,7 @@ metadata:
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-strip-admin@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-redirect-slash-admin@kubernetescrd,{{ $ns }}-strip-admin@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
@@ -38,7 +38,7 @@ metadata:
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-strip-chat@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-redirect-slash-chat@kubernetescrd,{{ $ns }}-strip-chat@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
@@ -280,7 +280,7 @@ metadata:
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-strip-minio@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-redirect-slash-minio@kubernetescrd,{{ $ns }}-strip-minio@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
@@ -325,4 +325,27 @@ spec:
                 name: minio
                 port:
                   number: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mlops-ingress-http-redirect
+  namespace: {{ $ns }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-redirect-https@kubernetescrd
+    traefik.ingress.kubernetes.io/router.priority: "1"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: {{ $domain | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: admin-ui
+                port:
+                  number: 8080
 {{- end }}

@@ -78,4 +78,58 @@ metadata:
 spec:
   replacePath:
     path: /v1/feedback
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: {{ $ns }}
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-slash-admin
+  namespace: {{ $ns }}
+spec:
+  redirectRegex:
+    regex: ^(https?://[^/?#]+)/admin$
+    replacement: ${1}/admin/
+    permanent: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-slash-chat
+  namespace: {{ $ns }}
+spec:
+  redirectRegex:
+    regex: ^(https?://[^/?#]+)/chat$
+    replacement: ${1}/chat/
+    permanent: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-slash-minio
+  namespace: {{ $ns }}
+spec:
+  redirectRegex:
+    regex: ^(https?://[^/?#]+)/minio$
+    replacement: ${1}/minio/
+    permanent: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-slash-argocd
+  namespace: {{ $ns }}
+spec:
+  redirectRegex:
+    regex: ^(https?://[^/?#]+)/argocd$
+    replacement: ${1}/argocd/
+    permanent: true
 {{- end }}
