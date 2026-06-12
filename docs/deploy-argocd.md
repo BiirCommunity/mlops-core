@@ -213,6 +213,25 @@ Job `minio-init` после завершения удаляется TTL-controll
 
 Для CPU-кластера замените `ARGOCD_APP_NAME` на `mlops-core-no-gpu` или добавьте второй job.
 
+### Rollback → Argo CD (откат на старый tag)
+
+Workflow **Rollback** — без сборки образов, только patch/sync в Argo CD на **уже опубликованный** tag в GHCR.
+
+Запуск: **Actions → Rollback → Run workflow**:
+
+| Input | Пример |
+|-------|--------|
+| `tag` | `1.0.5` |
+| `confirm_tag` | `1.0.5` (должен совпасть с `tag`) |
+
+1. Проверка, что все 5 образов `mlops-core-*:${tag}` есть в GHCR.
+2. **Approve** в environment `production` (те же reviewers, что для Release).
+3. `argocd app patch` + `sync` + `wait` — как в `deploy-argo`.
+
+Образы заново не собираются. Теги в GHCR не удаляйте — иначе откат не найдёт manifest.
+
+Альтернатива без GitHub: Argo CD UI → **History and rollback** на Application `mlops-core`.
+
 ### Let's Encrypt (опционально)
 
 Если позже понадобится автоматический cert — `deploy/ingress/cluster-issuer.yaml` + cert-manager. Для своих CA не используйте.
