@@ -135,6 +135,11 @@ def _swagger_html(openapi_url: str, title: str) -> HTMLResponse:
     )
 
 
+# Через Ingress UI открывается как /api/docs, но Traefik rewrite отдаёт handler /docs.
+# Браузер грузит schema с корня домена — только /api/openapi.json проброшен наружу.
+PUBLIC_OPENAPI_URL = "/api/openapi.json"
+
+
 def register_docs_routes(app: FastAPI) -> None:
     title = f"{app.title} — Swagger UI"
 
@@ -144,7 +149,7 @@ def register_docs_routes(app: FastAPI) -> None:
 
     @app.get("/docs", include_in_schema=False)
     async def swagger_docs() -> HTMLResponse:
-        return _swagger_html("/openapi.json", title)
+        return _swagger_html(PUBLIC_OPENAPI_URL, title)
 
     @app.get("/api/openapi.json", include_in_schema=False)
     async def api_openapi_json() -> JSONResponse:
@@ -152,7 +157,7 @@ def register_docs_routes(app: FastAPI) -> None:
 
     @app.get("/api/docs", include_in_schema=False)
     async def api_swagger_docs() -> HTMLResponse:
-        return _swagger_html("/api/openapi.json", title)
+        return _swagger_html(PUBLIC_OPENAPI_URL, title)
 
     # Fallback when Ingress rewrite sends /api/docs → /v1/training/docs
     @app.get("/v1/training/openapi.json", include_in_schema=False)
@@ -161,7 +166,7 @@ def register_docs_routes(app: FastAPI) -> None:
 
     @app.get("/v1/training/docs", include_in_schema=False)
     async def training_swagger_docs() -> HTMLResponse:
-        return _swagger_html("/v1/training/openapi.json", title)
+        return _swagger_html(PUBLIC_OPENAPI_URL, title)
 
     # Legacy Traefik rewrite (/api/* → /training/*) until mlops-core-secrets is synced
     @app.get("/training/openapi.json", include_in_schema=False)
@@ -170,4 +175,4 @@ def register_docs_routes(app: FastAPI) -> None:
 
     @app.get("/training/docs", include_in_schema=False)
     async def legacy_training_swagger_docs() -> HTMLResponse:
-        return _swagger_html("/training/openapi.json", title)
+        return _swagger_html(PUBLIC_OPENAPI_URL, title)
