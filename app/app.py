@@ -589,9 +589,18 @@ API_DESCRIPTION = (
 )
 
 OPENAPI_TAGS = [
-    {"name": "v1-inference", "description": f"/{API_VERSION}/chat/*, /{API_VERSION}/feedback"},
-    {"name": "v1-monitoring", "description": f"/{API_VERSION}/drift/* and unversioned /health, /metrics"},
-    {"name": "v1-training-auth", "description": f"/{API_VERSION}/training/auth/* (legacy; prefer auth-service)"},
+    {
+        "name": "v1-inference",
+        "description": f"/{API_VERSION}/chat/*, /{API_VERSION}/feedback",
+    },
+    {
+        "name": "v1-monitoring",
+        "description": f"/{API_VERSION}/drift/* and unversioned /health, /metrics",
+    },
+    {
+        "name": "v1-training-auth",
+        "description": f"/{API_VERSION}/training/auth/* (legacy; prefer auth-service)",
+    },
     {"name": "v1-training", "description": f"/{API_VERSION}/training/*"},
     {"name": "v1-training-admin", "description": f"/{API_VERSION}/training/admin/*"},
 ]
