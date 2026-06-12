@@ -23,11 +23,12 @@ from app.training.jobs import TrainingJobManager
 from app.training.mlflow_registry import MLflowRegistry
 from app.training.minio_storage import MinioStorage
 from app.training.trainer import LoRATrainConfig
+from app.api_catalog import build_api_index
 
-auth_router = APIRouter(prefix="/training/auth", tags=["training-auth"])
+auth_router = APIRouter(prefix="/v1/training/auth", tags=["v1-training-auth"])
 router = APIRouter(
-    prefix="/training",
-    tags=["training"],
+    prefix="/v1/training",
+    tags=["v1-training"],
     dependencies=[Depends(require_access_token)],
 )
 _settings = TrainingSettings.from_env()
@@ -82,6 +83,12 @@ class RegisterCheckpointRequest(BaseModel):
 
 class VerifyTokenRequest(BaseModel):
     token: str | None = None
+
+
+@router.get("", include_in_schema=False)
+@router.get("/", include_in_schema=False)
+async def training_api_index() -> dict[str, object]:
+    return build_api_index(via_ingress=True)
 
 
 @auth_router.get("/status")

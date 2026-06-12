@@ -67,7 +67,7 @@ flowchart TB
 | auth-service | JWT, users, API keys | — | только внутри кластера |
 | redis, prometheus | TTT-сессии, scrape | — | только внутри кластера |
 
-**Traefik (порт 80):** `http://83.221.210.29/admin`, `/chat`, `/api`, `/grafana`, `/mlflow`
+**Traefik (HTTPS):** `https://adaptive-llm.ru/admin`, `/chat`, `/api`, `/api/docs`, `/grafana`, `/mlflow`
 
 ### Учётные записи
 
@@ -104,7 +104,7 @@ kubectl apply -f deploy/argocd/application.yaml
 
 ## Пайплайн моделей
 
-1. **Deploy** — Admin UI или `POST /training/deploy` → артефакт из MLflow на диск, `active_model.json`
+1. **Deploy** — Admin UI или `POST /v1/training/models/deploy` → артефакт из MLflow на диск, `active_model.json`
 2. **DVC** — `models/model.pt` синхронизируется в MinIO
 3. **Restart** — `kubectl -n mlops rollout restart deployment/app`
 

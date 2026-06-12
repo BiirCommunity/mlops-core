@@ -12,8 +12,8 @@ from app.training.model_status import build_model_status
 from app.training.minio_storage import MinioStorage
 
 admin_router = APIRouter(
-    prefix="/training/admin",
-    tags=["training-admin"],
+    prefix="/v1/training/admin",
+    tags=["v1-training-admin"],
     dependencies=[Depends(require_access_token)],
 )
 _settings = TrainingSettings.from_env()
