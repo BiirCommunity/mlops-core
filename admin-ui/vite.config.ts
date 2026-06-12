@@ -14,25 +14,24 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api/auth": {
+      "/v1/auth": {
         target: "http://localhost:8090",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/auth/, "/auth"),
+        rewrite: (path) => path.replace(/^\/v1\/auth/, "/auth"),
       },
-      "/api/users": {
+      "/v1/users": {
         target: "http://localhost:8090",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/users/, "/users"),
+        rewrite: (path) => path.replace(/^\/v1\/users/, "/users"),
       },
-      "/api/api-keys": {
+      "/v1/api-keys": {
         target: "http://localhost:8090",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/api-keys/, "/api-keys"),
+        rewrite: (path) => path.replace(/^\/v1\/api-keys/, "/api-keys"),
       },
-      "/api": {
+      "/v1/training": {
         target: "http://localhost:8080",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, "/v1/training"),
       },
     },
   },

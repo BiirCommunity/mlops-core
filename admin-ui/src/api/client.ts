@@ -17,7 +17,8 @@ import type {
 } from "@/types";
 import { authHeaders, getAccessToken } from "@/auth/token";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
+const TRAINING_API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/v1/training";
+const AUTH_API_BASE = "/v1";
 
 class ApiError extends Error {
   status: number;
@@ -28,8 +29,12 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+async function requestAt<T>(
+  base: string,
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await fetch(`${base}${path}`, {
     ...init,
     headers: {
       ...authHeaders(),
@@ -63,6 +68,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  return requestAt(TRAINING_API_BASE, path, init);
+}
+
+async function authRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  return requestAt(AUTH_API_BASE, path, init);
+}
+
 export const trainingApi = {
   authStatus: () =>
     request<{ token_required: boolean }>("/auth/status", {
@@ -70,7 +83,7 @@ export const trainingApi = {
     }),
 
   verifyToken: (token: string) =>
-    fetch(`${API_BASE}/auth/verify`, {
+    fetch(`${AUTH_API_BASE}/auth/verify`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -84,7 +97,7 @@ export const trainingApi = {
     }),
 
   login: (username: string, password: string) =>
-    fetch(`${API_BASE}/auth/login`, {
+    fetch(`${AUTH_API_BASE}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
@@ -179,7 +192,7 @@ export const trainingApi = {
   },
 
   downloadExampleDataset: async () => {
-    const response = await fetch(`${API_BASE}/datasets/example`, {
+    const response = await fetch(`${TRAINING_API_BASE}/datasets/example`, {
       headers: authHeaders(),
     });
     if (response.status === 401) {
@@ -237,14 +250,14 @@ export const trainingApi = {
 };
 
 export const authServiceApi = {
-  listUsers: () => request<{ count: number; users: AuthUser[] }>("/users"),
+  listUsers: () => authRequest<{ count: number; users: AuthUser[] }>("/users"),
 
   createUser: (payload: {
     username: string;
     password: string;
     active?: boolean;
   }) =>
-    request<AuthUser>("/users", {
+    authRequest<AuthUser>("/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -254,26 +267,26 @@ export const authServiceApi = {
     userId: number,
     payload: { username?: string; password?: string; active?: boolean },
   ) =>
-    request<AuthUser>(`/users/${userId}`, {
+    authRequest<AuthUser>(`/users/${userId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
 
   deleteUser: (userId: number) =>
-    request<{ status: string; id: string }>(`/users/${userId}`, {
+    authRequest<{ status: string; id: string }>(`/users/${userId}`, {
       method: "DELETE",
     }),
 
   listApiKeys: () =>
-    request<{ count: number; api_keys: AuthApiKey[] }>("/api-keys"),
+    authRequest<{ count: number; api_keys: AuthApiKey[] }>("/api-keys"),
 
   createApiKey: (payload: {
     user_id: number;
     name: string;
     scopes: string[];
   }) =>
-    request<{ token: string; api_key: AuthApiKey }>("/api-keys", {
+    authRequest<{ token: string; api_key: AuthApiKey }>("/api-keys", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

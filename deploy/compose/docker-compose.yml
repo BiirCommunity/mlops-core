@@ -177,7 +177,7 @@ services:
     ports:
       - "${ADMIN_UI_PORT:-3000}:8080"
     environment:
-      - VITE_API_BASE_URL=/api
+      - VITE_API_BASE_URL=/v1/training
       - VITE_MLFLOW_UI_URL=${MLFLOW_UI_URL:-http://localhost:5000}
 
 volumes:

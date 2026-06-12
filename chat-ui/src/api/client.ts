@@ -17,7 +17,7 @@ export type ChatCompletionResponse = {
 };
 
 export async function login(username: string, password: string) {
-  const response = await fetch("/api/auth/login", {
+  const response = await fetch("/v1/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
@@ -34,7 +34,7 @@ export async function sendChat(params: {
   sessionId: string;
   maxTokens?: number;
 }) {
-  const response = await fetch("/api/chat/completions", {
+  const response = await fetch("/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -65,7 +65,7 @@ export async function sendChat(params: {
 }
 
 export async function sendFeedback(completionId: string, rating: number) {
-  const response = await fetch("/api/chat/feedback", {
+  const response = await fetch("/v1/feedback", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

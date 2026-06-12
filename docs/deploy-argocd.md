@@ -82,7 +82,7 @@ argocd app sync mlops-core
 | minio API | 30900 |
 | minio console | 30901 |
 
-Ingress Traefik: `/admin`, `/chat`, `/api`, `/mlflow`, `/grafana` (порт 80).
+Ingress Traefik: `/admin`, `/chat`, `/v1`, `/v1/docs`, `/mlflow`, `/grafana` (HTTPS).
 
 ## Ingress, TLS (свои сертификаты) и GitHub webhook
 
@@ -108,11 +108,11 @@ Helm генерирует:
 | URL | Как работает |
 |-----|----------------|
 | `/admin`, `/chat` | Traefik strip prefix + Vite `base` + React `basename` |
-| `/api/*` | Traefik rewrite → `app` (`/v1/training/*`, `/v1/*`) или `auth-service` |
-| `/api/docs` | Swagger UI (Traefik → `/docs`; fallback в app: `/training/docs`, `/v1/training/docs`) |
-| `/api/openapi.json` | OpenAPI schema |
-
-Ingress/middleware — Application **`mlops-core-secrets`** (sync **вручную**). Без sync Traefik оставляет старый rewrite `/api/*` → `/training/*` вместо `/v1/training/*`.
+| `/v1/auth`, `/v1/users`, `/v1/api-keys` | auth-service (Traefik rewrite → `/auth`, `/users`, `/api-keys`) |
+| `/v1/*` | app — без rewrite, пути как в OpenAPI |
+| `/v1/docs`, `/v1/openapi.json` | Swagger UI и schema |
+| `/health`, `/metrics` | app probes (Swagger Try it out) |
+| `/api/*` | **deprecated** — redirect на `/v1/docs` в app |
 | `/grafana` | `GF_SERVER_SERVE_FROM_SUB_PATH` + `GF_SERVER_ROOT_URL` |
 | `/mlflow` | `MLFLOW_STATIC_PREFIX=/mlflow` |
 | `/minio` | Traefik strip prefix + `MINIO_BROWSER_REDIRECT_URL` (console) |
@@ -120,7 +120,7 @@ Ingress/middleware — Application **`mlops-core-secrets`** (sync **вручну
 | `/minio` | `MINIO_BROWSER_REDIRECT_URL`; `MINIO_SERVER_URL` = `http://minio:9000` (внутренний API для Console login) |
 | `/argocd` | `server.rootpath` в Argo CD |
 
-После изменений UI — пересобрать `mlops-core-admin-ui` и `mlops-core-chat-ui`, Sync `mlops-core-secrets` и `mlops-core`.
+После изменений — **Sync `mlops-core-secrets`** (Ingress/middleware), Release `app` + UI, Sync `mlops-core`.
 
 ### Один домен для всего
 
@@ -128,7 +128,9 @@ Ingress/middleware — Application **`mlops-core-secrets`** (sync **вручну
 |-----|--------|
 | `https://<domain>/admin` | admin-ui |
 | `https://<domain>/chat` | chat-ui |
-| `https://<domain>/api` | API |
+| `https://<domain>/v1/docs` | Swagger API |
+| `https://<domain>/v1/training/*` | Training API |
+| `https://<domain>/v1/chat/completions` | Inference |
 | `https://<domain>/mlflow` | MLflow |
 | `https://<domain>/minio` | MinIO Console |
 | `https://<domain>/minio-api` | MinIO S3 API |

@@ -49,5 +49,5 @@ data:
   RUN_MODE: "WEBSERVER"
   FASTAPI_HOST: "0.0.0.0"
   FASTAPI_PORT: "8080"
-  VITE_API_BASE_URL: "/api"
+  VITE_API_BASE_URL: "/v1/training"
   VITE_MLFLOW_UI_URL: "http://mlflow:5000"

@@ -14,20 +14,18 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
-      "/api/chat/completions": {
+      "/v1/chat/completions": {
         target: "http://localhost:8080",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/chat\/completions/, "/v1/chat/completions"),
       },
-      "/api/chat/feedback": {
+      "/v1/feedback": {
         target: "http://localhost:8080",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/chat\/feedback/, "/v1/feedback"),
       },
-      "/api/auth": {
+      "/v1/auth": {
         target: "http://localhost:8090",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/auth/, "/auth"),
+        rewrite: (path) => path.replace(/^\/v1\/auth/, "/auth"),
       },
     },
   },

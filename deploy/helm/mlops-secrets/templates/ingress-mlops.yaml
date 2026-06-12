@@ -112,12 +112,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: mlops-ingress-api-auth
+  name: mlops-ingress-v1-auth
   namespace: {{ $ns }}
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-strip-api@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-v1-auth-to-auth@kubernetescrd
+    traefik.ingress.kubernetes.io/router.priority: "20"
 spec:
   ingressClassName: traefik
   tls:
@@ -128,7 +129,7 @@ spec:
     - host: {{ $domain | quote }}
       http:
         paths:
-          - path: /api/auth
+          - path: /v1/auth
             pathType: Prefix
             backend:
               service:
@@ -139,12 +140,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: mlops-ingress-api-users
+  name: mlops-ingress-v1-users
   namespace: {{ $ns }}
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-strip-api@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-v1-users-to-users@kubernetescrd
+    traefik.ingress.kubernetes.io/router.priority: "20"
 spec:
   ingressClassName: traefik
   tls:
@@ -155,7 +157,7 @@ spec:
     - host: {{ $domain | quote }}
       http:
         paths:
-          - path: /api/users
+          - path: /v1/users
             pathType: Prefix
             backend:
               service:
@@ -166,12 +168,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: mlops-ingress-api-keys
+  name: mlops-ingress-v1-api-keys
   namespace: {{ $ns }}
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-strip-api@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-v1-api-keys-to-api-keys@kubernetescrd
+    traefik.ingress.kubernetes.io/router.priority: "20"
 spec:
   ingressClassName: traefik
   tls:
@@ -182,7 +185,7 @@ spec:
     - host: {{ $domain | quote }}
       http:
         paths:
-          - path: /api/api-keys
+          - path: /v1/api-keys
             pathType: Prefix
             backend:
               service:
@@ -193,12 +196,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: mlops-ingress-api-chat-completions
+  name: mlops-ingress-probes
   namespace: {{ $ns }}
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-api-chat-completions@kubernetescrd
+    traefik.ingress.kubernetes.io/router.priority: "15"
 spec:
   ingressClassName: traefik
   tls:
@@ -209,7 +212,14 @@ spec:
     - host: {{ $domain | quote }}
       http:
         paths:
-          - path: /api/chat/completions
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: app
+                port:
+                  number: 8080
+          - path: /metrics
             pathType: Exact
             backend:
               service:
@@ -220,95 +230,11 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: mlops-ingress-api-chat-feedback
+  name: mlops-ingress-v1-app
   namespace: {{ $ns }}
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-api-chat-feedback@kubernetescrd
-spec:
-  ingressClassName: traefik
-  tls:
-    - hosts:
-        - {{ $domain | quote }}
-      secretName: {{ $tlsSecret }}
-  rules:
-    - host: {{ $domain | quote }}
-      http:
-        paths:
-          - path: /api/chat/feedback
-            pathType: Exact
-            backend:
-              service:
-                name: app
-                port:
-                  number: 8080
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: mlops-ingress-api-docs
-  namespace: {{ $ns }}
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-api-docs@kubernetescrd
-    traefik.ingress.kubernetes.io/router.priority: "10"
-spec:
-  ingressClassName: traefik
-  tls:
-    - hosts:
-        - {{ $domain | quote }}
-      secretName: {{ $tlsSecret }}
-  rules:
-    - host: {{ $domain | quote }}
-      http:
-        paths:
-          - path: /api/docs
-            pathType: Prefix
-            backend:
-              service:
-                name: app
-                port:
-                  number: 8080
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: mlops-ingress-api-openapi
-  namespace: {{ $ns }}
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-api-openapi@kubernetescrd
-    traefik.ingress.kubernetes.io/router.priority: "10"
-spec:
-  ingressClassName: traefik
-  tls:
-    - hosts:
-        - {{ $domain | quote }}
-      secretName: {{ $tlsSecret }}
-  rules:
-    - host: {{ $domain | quote }}
-      http:
-        paths:
-          - path: /api/openapi.json
-            pathType: Exact
-            backend:
-              service:
-                name: app
-                port:
-                  number: 8080
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: mlops-ingress-api
-  namespace: {{ $ns }}
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-api-to-training@kubernetescrd
     traefik.ingress.kubernetes.io/router.priority: "1"
 spec:
   ingressClassName: traefik
@@ -320,7 +246,7 @@ spec:
     - host: {{ $domain | quote }}
       http:
         paths:
-          - path: /api
+          - path: /v1
             pathType: Prefix
             backend:
               service:
