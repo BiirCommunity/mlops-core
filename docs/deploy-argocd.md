@@ -109,6 +109,8 @@ Helm генерирует:
 |-----|----------------|
 | `/admin`, `/chat` | Traefik strip prefix + Vite `base` + React `basename` |
 | `/api/*` | Traefik rewrite → `app` (`/v1/training/*`, `/v1/*`) или `auth-service` |
+| `/api/docs` | Swagger UI  |
+| `/api/openapi.json` | OpenAPI schema |
 | `/grafana` | `GF_SERVER_SERVE_FROM_SUB_PATH` + `GF_SERVER_ROOT_URL` |
 | `/mlflow` | `MLFLOW_STATIC_PREFIX=/mlflow` |
 | `/minio` | Traefik strip prefix + `MINIO_BROWSER_REDIRECT_URL` (console) |

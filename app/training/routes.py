@@ -59,30 +59,37 @@ def _mlflow_registry() -> MLflowRegistry:
 
 
 class StartTrainingRequest(BaseModel):
-    dataset_path: str | None = None
-    run_name: str = Field(default="lora-posttrain")
-    epochs: int = Field(default=3, ge=1, le=100)
-    batch_size: int = Field(default=2, ge=1, le=128)
-    learning_rate: float = Field(default=2e-4, gt=0.0, le=1.0)
-    max_seq_len: int = Field(default=512, ge=64, le=4096)
-    lora_rank: int = Field(default=8, ge=1, le=128)
-    lora_alpha: float = Field(default=16.0, gt=0.0, le=256.0)
-    gradient_accumulation_steps: int = Field(default=1, ge=1, le=32)
-    seed: int = Field(default=42, ge=0)
+    dataset_path: str | None = Field(
+        default=None,
+        description="Путь к .jsonl локально или s3://bucket/datasets/...",
+    )
+    run_name: str = Field(default="lora-posttrain", description="Имя run в MLflow")
+    epochs: int = Field(default=3, ge=1, le=100, description="Число эпох")
+    batch_size: int = Field(default=2, ge=1, le=128, description="Batch size")
+    learning_rate: float = Field(default=2e-4, gt=0.0, le=1.0, description="LR")
+    max_seq_len: int = Field(default=512, ge=64, le=4096, description="Max seq len")
+    lora_rank: int = Field(default=8, ge=1, le=128, description="LoRA rank")
+    lora_alpha: float = Field(default=16.0, gt=0.0, le=256.0, description="LoRA alpha")
+    gradient_accumulation_steps: int = Field(
+        default=1, ge=1, le=32, description="Gradient accumulation"
+    )
+    seed: int = Field(default=42, ge=0, description="Random seed")
 
 
 class DeployModelRequest(BaseModel):
-    version: str
-    target_path: str | None = None
+    version: str = Field(description="Версия модели в MLflow registry")
+    target_path: str | None = Field(
+        default=None, description="Путь на диске (опционально)"
+    )
 
 
 class RegisterCheckpointRequest(BaseModel):
-    job_id: str
-    epoch: int = Field(ge=1)
+    job_id: str = Field(description="ID training job")
+    epoch: int = Field(ge=1, description="Номер эпохи checkpoint")
 
 
 class VerifyTokenRequest(BaseModel):
-    token: str | None = None
+    token: str | None = Field(default=None, description="ACCESS_TOKEN для проверки")
 
 
 @router.get("", include_in_schema=False)
@@ -91,19 +98,19 @@ async def training_api_index() -> dict[str, object]:
     return build_api_index(via_ingress=True)
 
 
-@auth_router.get("/status")
+@auth_router.get("/status", summary="Статус auth training API")
 async def auth_status() -> dict[str, bool]:
     return {"token_required": access_token_configured()}
 
 
-@auth_router.post("/verify")
+@auth_router.post("/verify", summary="Проверка ACCESS_TOKEN (legacy)")
 async def verify_token(req: VerifyTokenRequest, request: Request) -> dict[str, str]:
     token = req.token or extract_bearer_token(request)
     verify_token_value(token)
     return {"status": "ok"}
 
 
-@router.get("/health")
+@router.get("/health", summary="Health training stack (MinIO + MLflow)")
 async def training_health() -> dict[str, Any]:
     minio_ok, minio_msg = _minio_storage().ping()
     mlflow_ok, mlflow_msg = _mlflow_registry().ping()
@@ -119,7 +126,7 @@ async def training_health() -> dict[str, Any]:
     }
 
 
-@router.get("/jobs")
+@router.get("/jobs", summary="Список LoRA training jobs")
 async def list_training_jobs(limit: int = 50) -> dict[str, Any]:
     jobs = _job_manager().list_jobs(limit=max(1, min(limit, 100)))
     return {"count": len(jobs), "jobs": jobs}
@@ -222,7 +229,7 @@ async def list_datasets() -> dict[str, Any]:
     }
 
 
-@router.post("/jobs")
+@router.post("/jobs", summary="Запуск LoRA post-train job")
 async def start_training_job(req: StartTrainingRequest) -> dict[str, Any]:
     dataset_path = str(_resolve_dataset_path(req.dataset_path))
 
@@ -364,7 +371,7 @@ async def register_base_model() -> dict[str, Any]:
     return {"status": "registered", **result}
 
 
-@router.post("/models/deploy")
+@router.post("/models/deploy", summary="Deploy версии модели в inference")
 async def deploy_registered_model(req: DeployModelRequest) -> dict[str, Any]:
     try:
         return _job_manager().deploy_model_version(

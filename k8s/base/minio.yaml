@@ -30,11 +30,7 @@ spec:
                   key: MINIO_BROWSER_REDIRECT_URL
                   optional: true
             - name: MINIO_SERVER_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: mlops-platform-config
-                  key: MINIO_SERVER_URL
-                  optional: true
+              value: "http://minio:9000"
             - name: MINIO_ROOT_USER
               valueFrom:
                 secretKeyRef:
