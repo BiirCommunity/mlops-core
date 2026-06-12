@@ -190,6 +190,14 @@ Workflow **Release** после push образов в GHCR вызывает Arg
 |--------|----------|
 | `ARGOCD_AUTH_TOKEN` | токен из Argo CD UI (Settings → Accounts → Generate token) |
 
+**GitHub → Settings → Environments → New environment** → имя **`production`** (как в `release.yml`):
+
+1. **Required reviewers** — один или несколько approvers (деплой в Argo CD не стартует без Approve).
+2. Опционально: **Wait timer**, **Deployment branches** (только `main`).
+
+После `publish` job `deploy-argo` ждёт approval в Actions → run → **Review pending deployments** → **Approve and deploy**.  
+`lint` / `build` / `publish` идут без паузы; пауза только перед patch/sync в Argo CD.
+
 Argo CD должен быть доступен из GitHub Actions: `https://adaptive-llm.ru/argocd`.
 
 Запуск: **Actions → Release → Run workflow** → tag, например `v1.2.0`.
