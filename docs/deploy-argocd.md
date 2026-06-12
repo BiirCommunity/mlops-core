@@ -109,8 +109,10 @@ Helm генерирует:
 |-----|----------------|
 | `/admin`, `/chat` | Traefik strip prefix + Vite `base` + React `basename` |
 | `/api/*` | Traefik rewrite → `app` (`/v1/training/*`, `/v1/*`) или `auth-service` |
-| `/api/docs` | Swagger UI  |
+| `/api/docs` | Swagger UI (Traefik → `/docs`; fallback в app: `/training/docs`, `/v1/training/docs`) |
 | `/api/openapi.json` | OpenAPI schema |
+
+Ingress/middleware — Application **`mlops-core-secrets`** (sync **вручную**). Без sync Traefik оставляет старый rewrite `/api/*` → `/training/*` вместо `/v1/training/*`.
 | `/grafana` | `GF_SERVER_SERVE_FROM_SUB_PATH` + `GF_SERVER_ROOT_URL` |
 | `/mlflow` | `MLFLOW_STATIC_PREFIX=/mlflow` |
 | `/minio` | Traefik strip prefix + `MINIO_BROWSER_REDIRECT_URL` (console) |
