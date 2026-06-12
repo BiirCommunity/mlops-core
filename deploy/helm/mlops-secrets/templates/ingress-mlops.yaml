@@ -247,6 +247,62 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
+  name: mlops-ingress-api-docs
+  namespace: {{ $ns }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-api-docs@kubernetescrd
+    traefik.ingress.kubernetes.io/router.priority: "10"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - {{ $domain | quote }}
+      secretName: {{ $tlsSecret }}
+  rules:
+    - host: {{ $domain | quote }}
+      http:
+        paths:
+          - path: /api/docs
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mlops-ingress-api-openapi
+  namespace: {{ $ns }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $ns }}-api-openapi@kubernetescrd
+    traefik.ingress.kubernetes.io/router.priority: "10"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - {{ $domain | quote }}
+      secretName: {{ $tlsSecret }}
+  rules:
+    - host: {{ $domain | quote }}
+      http:
+        paths:
+          - path: /api/openapi.json
+            pathType: Exact
+            backend:
+              service:
+                name: app
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
   name: mlops-ingress-api
   namespace: {{ $ns }}
   annotations:

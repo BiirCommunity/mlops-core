@@ -30,6 +30,7 @@ from app.core.interaction_log import InteractionLog
 from app.core.session_cache import RedisTTTSessionCache
 from app.core.toxicity import ToxicityScorer
 from app.core.ttt import extract_inner_state_dict, load_inner_state_dict, ttt_adapt
+from app.api_catalog import API_VERSION, build_api_index
 from app.training.admin_routes import admin_router
 from app.training.config import TrainingSettings
 from app.training.inference_model import register_inference_startup
@@ -582,16 +583,26 @@ async def lifespan(_: FastAPI):
 
 
 API_DESCRIPTION = (
-    "Inference (chat + TTT), training, drift/metrics. "
-    "Inference: INFERENCE_API_KEY. Training/admin: ACCESS_TOKEN."
+    f"Public API version: {API_VERSION}. "
+    "Inference and drift under /v1; training under /v1/training (via Ingress: /api). "
+    "Auth: auth-service (/api/auth). Probes: /health, /metrics."
 )
 
 OPENAPI_TAGS = [
-    {"name": "inference"},
-    {"name": "monitoring"},
-    {"name": "training-auth"},
-    {"name": "training"},
-    {"name": "training-admin"},
+    {
+        "name": "v1-inference",
+        "description": f"/{API_VERSION}/chat/*, /{API_VERSION}/feedback",
+    },
+    {
+        "name": "v1-monitoring",
+        "description": f"/{API_VERSION}/drift/* and unversioned /health, /metrics",
+    },
+    {
+        "name": "v1-training-auth",
+        "description": f"/{API_VERSION}/training/auth/* (legacy; prefer auth-service)",
+    },
+    {"name": "v1-training", "description": f"/{API_VERSION}/training/*"},
+    {"name": "v1-training-admin", "description": f"/{API_VERSION}/training/admin/*"},
 ]
 
 app = FastAPI(
@@ -635,7 +646,17 @@ async def prometheus_request_middleware(request: Request, call_next):
     return response
 
 
-@app.get("/health", tags=["monitoring"])
+@app.get("/", tags=["v1-monitoring"], include_in_schema=True)
+async def api_root() -> dict[str, object]:
+    return build_api_index(via_ingress=False)
+
+
+@app.get(f"/{API_VERSION}", tags=["v1-monitoring"], include_in_schema=True)
+async def api_version_root() -> dict[str, object]:
+    return build_api_index(via_ingress=False)
+
+
+@app.get("/health", tags=["v1-monitoring"])
 async def health() -> Response:
     healthy, checks = refresh_dependency_gauges(
         redis_client=SESSION_CACHE.client if SESSION_CACHE is not None else None
@@ -652,12 +673,12 @@ async def health() -> Response:
     )
 
 
-@app.get("/metrics", tags=["monitoring"])
+@app.get("/metrics", tags=["v1-monitoring"])
 async def metrics() -> Response:
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-@app.get("/v1/drift/reports", tags=["monitoring"])
+@app.get("/v1/drift/reports", tags=["v1-monitoring"])
 async def list_drift_reports(limit: int = 20) -> dict[str, list[dict[str, str]] | int]:
     writer = get_drift_report_writer()
     if writer is None:
@@ -667,7 +688,7 @@ async def list_drift_reports(limit: int = 20) -> dict[str, list[dict[str, str]] 
     return {"count": len(reports), "reports": reports}
 
 
-@app.get("/v1/drift/reports/latest", tags=["monitoring"])
+@app.get("/v1/drift/reports/latest", tags=["v1-monitoring"])
 async def get_latest_drift_report() -> dict:
     writer = get_drift_report_writer()
     if writer is None:
@@ -680,7 +701,7 @@ async def get_latest_drift_report() -> dict:
 
 @app.get(
     "/v1/drift/reports/{report_id}",
-    tags=["monitoring"],
+    tags=["v1-monitoring"],
 )
 async def get_drift_report(report_id: str) -> dict:
     writer = get_drift_report_writer()
@@ -694,7 +715,7 @@ async def get_drift_report(report_id: str) -> dict:
 
 @app.post(
     "/v1/feedback",
-    tags=["inference"],
+    tags=["v1-inference"],
     dependencies=[Depends(require_inference_api_key)],
 )
 async def submit_feedback(req: FeedbackRequest) -> dict[str, str | int]:
@@ -717,7 +738,7 @@ async def submit_feedback(req: FeedbackRequest) -> dict[str, str | int]:
 
 @app.post(
     "/v1/chat/completions",
-    tags=["inference"],
+    tags=["v1-inference"],
     response_model=ChatCompletionResponse,
     dependencies=[Depends(require_inference_api_key)],
 )
