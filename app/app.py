@@ -595,18 +595,15 @@ async def lifespan(_: FastAPI):
 API_DESCRIPTION = (
     "## MLOps Core API\n\n"
     f"Версия публичного API: **{API_VERSION}**.\n\n"
-    "### Маршруты через Ingress (`https://adaptive-llm.ru`)\n"
-    "- **Inference:** `POST /api/chat/completions`, `POST /api/chat/feedback` "
-    "— нужен **inference API key** (`X-API-Key` или `Authorization: Bearer`).\n"
-    "- **Training / Admin:** `/api/*` → jobs, datasets, models, drift admin "
-    "— нужен **admin token** (`Authorization: Bearer` после `/api/auth/login`).\n"
-    "- **Auth:** `/api/auth`, `/api/users`, `/api/api-keys` — сервис auth-service.\n"
-    "- **Swagger:** `/api/docs` (этот UI).\n\n"
-    "### Прямой доступ к app (NodePort :30800)\n"
-    f"- Inference: `/{API_VERSION}/chat/completions`, `/{API_VERSION}/feedback`\n"
-    f"- Training: `/{API_VERSION}/training/*`\n"
-    "- Probes: `/health`, `/metrics` (без авторизации)\n\n"
-    "В Swagger нажмите **Authorize** и укажите ключ или Bearer-токен."
+    "Все маршруты с префиксом **`/v1`** (Ingress и Swagger Try it out).\n\n"
+    "- **Inference:** `POST /v1/chat/completions`, `POST /v1/feedback` "
+    "— inference API key (`X-API-Key` или `Authorization: Bearer`).\n"
+    "- **Training / Admin:** `/v1/training/*` "
+    "— admin Bearer после `POST /v1/auth/login`.\n"
+    "- **Auth:** `/v1/auth`, `/v1/users`, `/v1/api-keys` — auth-service.\n"
+    "- **Monitoring:** `/health`, `/metrics`, `/v1/drift/*`.\n"
+    "- **Swagger:** `/v1/docs`.\n\n"
+    "В Swagger выберите server **HTTPS Ingress** и нажмите **Authorize**."
 )
 
 OPENAPI_TAGS = [
@@ -628,7 +625,7 @@ OPENAPI_TAGS = [
         "name": "v1-training-auth",
         "description": (
             "Legacy-проверка ACCESS_TOKEN. "
-            "Предпочтительно: auth-service через /api/auth."
+            "Предпочтительно: auth-service через /v1/auth."
         ),
     },
     {
@@ -809,7 +806,7 @@ async def submit_feedback(req: FeedbackRequest) -> dict[str, str | int]:
     summary="Chat completions (inference + TTT)",
     description=(
         "OpenAI-совместимый endpoint. Поддерживает TTT через session_id. "
-        "Через Ingress: POST /api/chat/completions. "
+        "Через Ingress: POST /v1/chat/completions. "
         "Требуется inference API key (X-API-Key или Authorization: Bearer)."
     ),
 )

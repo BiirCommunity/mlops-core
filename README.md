@@ -67,7 +67,7 @@ flowchart TB
 | auth-service | JWT, users, API keys | — | только внутри кластера |
 | redis, prometheus | TTT-сессии, scrape | — | только внутри кластера |
 
-**Traefik (HTTPS):** `https://adaptive-llm.ru/admin`, `/chat`, `/api`, `/api/docs`, `/grafana`, `/mlflow`
+**Traefik (HTTPS):** `https://adaptive-llm.ru/admin`, `/chat`, `/v1`, `/v1/docs`, `/grafana`, `/mlflow`
 
 ### Учётные записи
 

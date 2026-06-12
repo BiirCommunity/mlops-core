@@ -7,7 +7,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-ARG VITE_API_BASE_URL=/api
+ARG VITE_API_BASE_URL=/v1/training
 ARG VITE_MLFLOW_UI_URL=/mlflow
 ARG VITE_BASE_PATH="/admin/"
 ARG CACHEBUST=1

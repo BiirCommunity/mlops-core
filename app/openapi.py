@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
+
+INGRESS_PUBLIC_URL = os.environ.get(
+    "INGRESS_PUBLIC_URL", "https://adaptive-llm.ru"
+).rstrip("/")
+PUBLIC_OPENAPI_URL = "/v1/openapi.json"
 
 SECURITY_SCHEMES: dict[str, dict[str, str]] = {
     "InferenceApiKey": {
@@ -33,7 +39,7 @@ SECURITY_SCHEMES: dict[str, dict[str, str]] = {
         "type": "http",
         "scheme": "bearer",
         "description": (
-            "Admin/training токен после POST /api/auth/login "
+            "Admin/training токен после POST /v1/auth/login "
             "(scope admin). Используется для LoRA, моделей, датасетов."
         ),
     },
@@ -97,12 +103,12 @@ def _apply_security(schema: dict) -> None:
 def _apply_servers(schema: dict) -> None:
     schema["servers"] = [
         {
-            "url": "/",
-            "description": "Прямой доступ к app (NodePort :30800 или внутри кластера)",
+            "url": INGRESS_PUBLIC_URL,
+            "description": "HTTPS Ingress — все пути как в Swagger (/v1/*, /health)",
         },
         {
-            "url": "https://adaptive-llm.ru",
-            "description": "Внешний домен: inference — /v1/*, training — /api/* (см. описание)",
+            "url": "/",
+            "description": "NodePort app (:30800) — те же пути от корня сервиса",
         },
     ]
 
@@ -135,11 +141,6 @@ def _swagger_html(openapi_url: str, title: str) -> HTMLResponse:
     )
 
 
-# Через Ingress UI открывается как /api/docs, но Traefik rewrite отдаёт handler /docs.
-# Браузер грузит schema с корня домена — только /api/openapi.json проброшен наружу.
-PUBLIC_OPENAPI_URL = "/api/openapi.json"
-
-
 def register_docs_routes(app: FastAPI) -> None:
     title = f"{app.title} — Swagger UI"
 
@@ -147,32 +148,22 @@ def register_docs_routes(app: FastAPI) -> None:
     async def openapi_json() -> JSONResponse:
         return JSONResponse(app.openapi())
 
+    @app.get("/v1/openapi.json", include_in_schema=False)
+    async def v1_openapi_json() -> JSONResponse:
+        return JSONResponse(app.openapi())
+
     @app.get("/docs", include_in_schema=False)
+    async def redirect_legacy_docs() -> RedirectResponse:
+        return RedirectResponse("/v1/docs", status_code=302)
+
+    @app.get("/v1/docs", include_in_schema=False)
     async def swagger_docs() -> HTMLResponse:
         return _swagger_html(PUBLIC_OPENAPI_URL, title)
 
-    @app.get("/api/openapi.json", include_in_schema=False)
-    async def api_openapi_json() -> JSONResponse:
-        return JSONResponse(app.openapi())
-
     @app.get("/api/docs", include_in_schema=False)
-    async def api_swagger_docs() -> HTMLResponse:
-        return _swagger_html(PUBLIC_OPENAPI_URL, title)
+    async def redirect_api_docs() -> RedirectResponse:
+        return RedirectResponse("/v1/docs", status_code=302)
 
-    # Fallback when Ingress rewrite sends /api/docs → /v1/training/docs
-    @app.get("/v1/training/openapi.json", include_in_schema=False)
-    async def training_openapi_json() -> JSONResponse:
-        return JSONResponse(app.openapi())
-
-    @app.get("/v1/training/docs", include_in_schema=False)
-    async def training_swagger_docs() -> HTMLResponse:
-        return _swagger_html(PUBLIC_OPENAPI_URL, title)
-
-    # Legacy Traefik rewrite (/api/* → /training/*) until mlops-core-secrets is synced
-    @app.get("/training/openapi.json", include_in_schema=False)
-    async def legacy_training_openapi_json() -> JSONResponse:
-        return JSONResponse(app.openapi())
-
-    @app.get("/training/docs", include_in_schema=False)
-    async def legacy_training_swagger_docs() -> HTMLResponse:
-        return _swagger_html(PUBLIC_OPENAPI_URL, title)
+    @app.get("/api/openapi.json", include_in_schema=False)
+    async def redirect_api_openapi() -> RedirectResponse:
+        return RedirectResponse(PUBLIC_OPENAPI_URL, status_code=302)

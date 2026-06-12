@@ -6,68 +6,41 @@ API_VERSION = "v1"
 
 
 def build_api_index(*, via_ingress: bool = False) -> dict[str, object]:
-    """Describe public API layout (internal paths or /api aliases via Ingress)."""
-    if via_ingress:
-        return {
-            "service": "mlops-core-app",
-            "api_version": API_VERSION,
-            "docs": "/api/docs",
-            "openapi": "/api/openapi.json",
-            "groups": {
-                "auth": {
-                    "prefix": "/api/auth",
-                    "service": "auth-service",
-                    "examples": ["POST /api/auth/login", "GET /api/users"],
-                },
-                "inference": {
-                    "examples": [
-                        "POST /api/chat/completions",
-                        "POST /api/chat/feedback",
-                    ],
-                },
-                "training": {
-                    "prefix": "/api",
-                    "examples": [
-                        "GET /api/health",
-                        "GET /api/jobs",
-                        "GET /api/admin/overview",
-                    ],
-                },
-            },
-            "monitoring": {
-                "note": "Probe endpoints are on app root, not exposed via /api",
-                "examples": ["GET /health", "GET /metrics"],
-            },
-        }
-
+    """Describe public API layout."""
+    _ = via_ingress
     return {
         "service": "mlops-core-app",
         "api_version": API_VERSION,
-        "docs": "/docs",
-        "openapi": "/openapi.json",
+        "docs": "/v1/docs",
+        "openapi": "/v1/openapi.json",
         "groups": {
+            "auth": {
+                "prefix": "/v1/auth",
+                "service": "auth-service",
+                "examples": ["POST /v1/auth/login", "GET /v1/users"],
+            },
             "inference": {
-                "prefix": f"/{API_VERSION}",
+                "prefix": "/v1",
                 "examples": [
-                    f"POST /{API_VERSION}/chat/completions",
-                    f"POST /{API_VERSION}/feedback",
-                    f"GET /{API_VERSION}/drift/reports",
+                    "POST /v1/chat/completions",
+                    "POST /v1/feedback",
                 ],
             },
             "training": {
-                "prefix": f"/{API_VERSION}/training",
+                "prefix": "/v1/training",
                 "examples": [
-                    f"GET /{API_VERSION}/training/health",
-                    f"GET /{API_VERSION}/training/jobs",
-                    f"GET /{API_VERSION}/training/admin/overview",
+                    "GET /v1/training/health",
+                    "GET /v1/training/jobs",
+                    "GET /v1/training/admin/overview",
                 ],
             },
             "monitoring": {
                 "prefix": "/",
-                "examples": ["GET /health", "GET /metrics"],
-            },
-            "auth": {
-                "note": "Separate auth-service; via Ingress use /api/auth, /api/users",
+                "examples": [
+                    "GET /health",
+                    "GET /metrics",
+                    "GET /v1/drift/reports",
+                ],
             },
         },
     }
