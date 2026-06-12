@@ -162,3 +162,12 @@ def register_docs_routes(app: FastAPI) -> None:
     @app.get("/v1/training/docs", include_in_schema=False)
     async def training_swagger_docs() -> HTMLResponse:
         return _swagger_html("/v1/training/openapi.json", title)
+
+    # Legacy Traefik rewrite (/api/* → /training/*) until mlops-core-secrets is synced
+    @app.get("/training/openapi.json", include_in_schema=False)
+    async def legacy_training_openapi_json() -> JSONResponse:
+        return JSONResponse(app.openapi())
+
+    @app.get("/training/docs", include_in_schema=False)
+    async def legacy_training_swagger_docs() -> HTMLResponse:
+        return _swagger_html("/training/openapi.json", title)
