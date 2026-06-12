@@ -134,6 +134,9 @@ jobs:
   deploy-argo:
     needs: publish
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ env.ARGOCD_SERVER }}${{ env.ARGOCD_ROOT_PATH }}/applications/${{ env.ARGOCD_APP_NAME }}
     env:
       ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
     steps:
