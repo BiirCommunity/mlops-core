@@ -6,50 +6,44 @@
 
 ## Архитектура
 
+### CI/CD и GitOps
+
 ```mermaid
-flowchart TB
-  subgraph ext [Внешний доступ NodePort]
-    Admin[Admin :30000]
-    Chat[Chat :30100]
-    API[LLM API :30800]
-    GF[Grafana :30300]
-    MLF[MLflow :30500]
-    MNC[MinIO Console :30901]
-  end
-  subgraph ui [Web UI]
-    AdminUI[admin-ui]
-    ChatUI[chat-ui]
-  end
-  subgraph core [Core]
-    Auth[auth-service]
-    App[app GPU]
-  end
-  subgraph data [Data]
-    Redis[(Redis)]
-    MinIO[(MinIO :30900)]
-    MLflowSvc[mlflow]
-  end
-  subgraph obs [Observability]
-    Prom[Prometheus]
-    Graf[grafana]
-  end
-  Admin --> AdminUI
-  Chat --> ChatUI
-  AdminUI --> Auth
-  AdminUI --> App
-  ChatUI --> Auth
-  ChatUI --> App
-  API --> App
-  GF --> Graf
-  MLF --> MLflowSvc
-  MNC --> MinIO
-  App --> Redis
-  App --> MLflowSvc
-  App --> MinIO
-  MLflowSvc --> MinIO
-  Prom --> App
-  Graf --> Prom
+flowchart LR
+  GitHub[GitHub repo] -->|push PR release| GHA[GitHub Actions]
+  GHA -->|build push| GHCR[(GHCR ghcr.io/biircommunity)]
+  GitHub -->|git sync| ArgoCD[Argo CD]
+  ArgoCD -->|sync| Deploy[k3s mlops]
+  GHCR -->|pull images| Deploy
 ```
+
+### k3s namespace mlops
+
+```mermaid
+flowchart LR
+  subgraph mlops [k3s namespace mlops]
+    direction LR
+    UI["Web UI (admin-ui, chat-ui)"]
+    Auth[auth-service]
+    App[app]
+    Redis[(Redis)]
+    MLflowSvc[mlflow]
+    MinIO[(MinIO)]
+    Graf[grafana]
+    Prom[Prometheus]
+
+    UI -->|login| Auth
+    Auth -->|API| App
+    Graf --> Prom
+    Prom -->|scrape| App
+    App --> Redis
+    App --> MLflowSvc
+    App --> MinIO
+    MLflowSvc --> MinIO
+  end
+```
+
+NodePort / Traefik: admin **30000**, chat **30100**, API **30800**, grafana **30300**, mlflow **30500**, minio **30900** / **30901**; HTTPS — `adaptive-llm.ru`.
 
 ## Сервисы и порты (k3s)
 
