@@ -97,6 +97,8 @@ def remote_object_exists(storage: MinioStorage, md5: str) -> bool:
 def get_dvc_status(
     checkpoint_path: str | Path,
     storage: MinioStorage | None = None,
+    *,
+    quick: bool = False,
 ) -> dict[str, Any]:
     path = Path(checkpoint_path)
     bucket, prefix = dvc_remote_settings()
@@ -125,22 +127,32 @@ def get_dvc_status(
             "status": "missing_checkpoint",
         }
 
-    disk_md5 = compute_file_md5(path)
+    disk_md5 = None if quick else compute_file_md5(path)
     disk_size = path.stat().st_size
     tracked_md5 = sidecar["md5"] if sidecar else None
     remote_present = None
     if storage is not None:
         check_md5 = tracked_md5 or disk_md5
-        remote_present = remote_object_exists(storage, check_md5)
+        if check_md5 is not None:
+            remote_present = remote_object_exists(storage, check_md5)
 
-    disk_matches_sidecar = (
-        sidecar is not None and tracked_md5 == disk_md5 and sidecar["size"] == disk_size
-    )
+    if quick and sidecar is not None:
+        disk_matches_sidecar = sidecar["size"] == disk_size
+        if disk_matches_sidecar:
+            disk_md5 = tracked_md5
+    else:
+        disk_matches_sidecar = (
+            sidecar is not None
+            and tracked_md5 == disk_md5
+            and sidecar["size"] == disk_size
+        )
     remote_ok = remote_present is True
 
     if sidecar is None:
         status = "untracked" if not remote_ok else "out_of_sync"
     elif disk_matches_sidecar and remote_ok:
+        status = "in_sync"
+    elif disk_matches_sidecar and remote_present is None:
         status = "in_sync"
     elif disk_matches_sidecar and remote_present is False:
         status = "remote_missing"
@@ -200,6 +212,7 @@ def get_unified_model_status(
     checkpoint_path: str | Path,
     registry_name: str,
     storage: MinioStorage | None = None,
+    quick: bool = False,
 ) -> dict[str, Any]:
     from app.training.inference_model import get_inference_model_status
 
@@ -207,7 +220,7 @@ def get_unified_model_status(
         checkpoint_path=checkpoint_path,
         registry_name=registry_name,
     )
-    dvc = get_dvc_status(checkpoint_path, storage=storage)
+    dvc = get_dvc_status(checkpoint_path, storage=storage, quick=quick)
 
     needs_dvc_sync = dvc["status"] in {"out_of_sync", "untracked", "remote_missing"}
     needs_restart = inference["pending_reload"]

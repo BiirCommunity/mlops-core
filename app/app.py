@@ -34,6 +34,7 @@ from app.training.admin_routes import admin_router
 from app.training.config import TrainingSettings
 from app.training.inference_model import register_inference_startup
 from app.training.mlflow_registry import MLflowRegistry
+from app.training.model_status import build_model_status
 from app.training.routes import auth_router, router as training_router
 from app.metrics import (
     excluded_latency_paths,
@@ -566,6 +567,10 @@ async def lifespan(_: FastAPI):
         redis_client=SESSION_CACHE.client if SESSION_CACHE is not None else None
     )
     record_health_check(healthy=healthy)
+    try:
+        build_model_status(quick=False, use_cache=False)
+    except Exception as exc:  # pylint: disable=broad-except,broad-exception-caught
+        print(f"[warn] initial DVC status check failed: {exc}")
     if inference_api_key_configured():
         print("[startup] inference API key auth enabled for /v1/chat/completions")
     else:
@@ -640,6 +645,13 @@ async def health() -> Response:
     healthy, checks = refresh_dependency_gauges(
         redis_client=SESSION_CACHE.client if SESSION_CACHE is not None else None
     )
+    try:
+        pipeline = build_model_status(quick=True)
+        checks["dvc"] = pipeline["dvc"]["status"]
+        checks["pipeline"] = pipeline["pipeline_status"]
+    except Exception:  # pylint: disable=broad-except
+        checks["dvc"] = "error"
+        checks["pipeline"] = "error"
     record_health_check(healthy=healthy)
     payload = {
         "status": "ok" if healthy else "degraded",

@@ -39,6 +39,41 @@ def test_get_dvc_status_out_of_sync(tmp_path: Path) -> None:
     assert status["disk_md5"] != status["tracked_md5"]
 
 
+def test_get_dvc_status_quick_skips_md5(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkpoint = tmp_path / "model.pt"
+    checkpoint.write_bytes(b"weights-v1")
+    md5 = compute_file_md5(checkpoint)
+    write_dvc_sidecar(checkpoint, md5=md5, size=checkpoint.stat().st_size)
+
+    def fail_md5(*_args, **_kwargs):
+        raise AssertionError("compute_file_md5 should not run in quick mode")
+
+    monkeypatch.setattr(
+        "app.training.dvc_status.compute_file_md5",
+        fail_md5,
+    )
+
+    status = get_dvc_status(checkpoint, storage=None, quick=True)
+
+    assert status["status"] == "in_sync"
+    assert status["disk_md5"] == md5
+
+
+def test_get_dvc_status_quick_detects_size_mismatch(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "model.pt"
+    checkpoint.write_bytes(b"old")
+    md5 = compute_file_md5(checkpoint)
+    write_dvc_sidecar(checkpoint, md5=md5, size=len(b"old"))
+    checkpoint.write_bytes(b"new-version")
+
+    status = get_dvc_status(checkpoint, storage=None, quick=True)
+
+    assert status["status"] == "out_of_sync"
+    assert status["disk_md5"] is None
+
+
 def test_sync_checkpoint_to_dvc(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

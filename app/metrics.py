@@ -1,5 +1,5 @@
 import json
-from typing import Iterable
+from typing import Any, Iterable
 
 from langdetect import LangDetectException, detect
 from prometheus_client import Counter, Gauge, Histogram, Summary
@@ -145,6 +145,62 @@ DRIFT_WINDOW_SAMPLES = Gauge(
 DRIFT_BASELINE_LOCKED = Gauge(
     "drift_baseline_locked",
     "1 once baseline window is full and frozen",
+)
+
+DVC_STATUSES = (
+    "in_sync",
+    "out_of_sync",
+    "untracked",
+    "remote_missing",
+    "missing_checkpoint",
+    "unknown",
+)
+PIPELINE_STATUSES = (
+    "ready",
+    "restart_required",
+    "dvc_sync_required",
+    "missing_checkpoint",
+    "attention",
+)
+
+DVC_CHECKPOINT_STATUS = Gauge(
+    "dvc_checkpoint_status",
+    "DVC checkpoint status (one-hot by status label)",
+    ["status"],
+)
+MODEL_PIPELINE_STATUS = Gauge(
+    "model_pipeline_status",
+    "Unified model pipeline status (one-hot by status label)",
+    ["status"],
+)
+DVC_IN_SYNC = Gauge(
+    "dvc_in_sync",
+    "1 if DVC checkpoint is in sync with sidecar and remote",
+)
+DVC_CHECKPOINT_EXISTS = Gauge(
+    "dvc_checkpoint_exists",
+    "1 if the model checkpoint file exists on disk",
+)
+DVC_REMOTE_PRESENT = Gauge(
+    "dvc_remote_present",
+    "1 if remote DVC object exists, 0 if missing, -1 if unknown",
+)
+DVC_SIDECAR_PRESENT = Gauge(
+    "dvc_sidecar_present",
+    "1 if the DVC sidecar file exists",
+)
+MODEL_PIPELINE_READY = Gauge(
+    "model_pipeline_ready",
+    "1 if inference is loaded, DVC is in sync, and no reload is pending",
+)
+DVC_CHECKPOINT_SIZE_BYTES = Gauge(
+    "dvc_checkpoint_size_bytes",
+    "Size of the model checkpoint on disk in bytes",
+)
+DVC_SYNC_TOTAL = Counter(
+    "dvc_sync",
+    "DVC sync operations",
+    ["result"],
 )
 
 _toxicity_scorer: ToxicityScorer | None = None
@@ -358,6 +414,40 @@ def record_request_latency(
 
 def set_model_loaded(loaded: bool) -> None:
     MODEL_LOADED.set(1 if loaded else 0)
+
+
+def _set_one_hot_gauge(gauge: Gauge, labels: tuple[str, ...], active: str) -> None:
+    for label in labels:
+        gauge.labels(status=label).set(1 if label == active else 0)
+
+
+def publish_dvc_status(unified: dict[str, Any]) -> None:
+    dvc = unified["dvc"]
+    pipeline_status = unified["pipeline_status"]
+    dvc_status = dvc["status"]
+
+    _set_one_hot_gauge(DVC_CHECKPOINT_STATUS, DVC_STATUSES, dvc_status)
+    _set_one_hot_gauge(MODEL_PIPELINE_STATUS, PIPELINE_STATUSES, pipeline_status)
+
+    DVC_IN_SYNC.set(1 if dvc.get("in_sync") else 0)
+    DVC_CHECKPOINT_EXISTS.set(1 if dvc.get("checkpoint_exists") else 0)
+    DVC_SIDECAR_PRESENT.set(1 if dvc.get("sidecar") is not None else 0)
+    MODEL_PIPELINE_READY.set(1 if pipeline_status == "ready" else 0)
+
+    remote_present = dvc.get("remote_present")
+    if remote_present is True:
+        DVC_REMOTE_PRESENT.set(1)
+    elif remote_present is False:
+        DVC_REMOTE_PRESENT.set(0)
+    else:
+        DVC_REMOTE_PRESENT.set(-1)
+
+    disk_size = dvc.get("disk_size")
+    DVC_CHECKPOINT_SIZE_BYTES.set(float(disk_size) if disk_size is not None else 0)
+
+
+def record_dvc_sync(*, success: bool) -> None:
+    DVC_SYNC_TOTAL.labels(result="success" if success else "error").inc()
 
 
 def refresh_dependency_gauges(*, redis_client) -> tuple[bool, dict[str, str]]:

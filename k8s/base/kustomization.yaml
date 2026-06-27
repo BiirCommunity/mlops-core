@@ -26,3 +26,4 @@ configMapGenerator:
     files:
       - llm.json=grafana/dashboards/llm.json
       - drift.json=grafana/dashboards/drift.json
+      - dvc.json=grafana/dashboards/dvc.json
