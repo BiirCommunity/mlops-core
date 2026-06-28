@@ -29,6 +29,53 @@ data:
             expr: response_toxicity_score_sum / response_toxicity_score_count
           - record: response_json_valid_ratio
             expr: response_json_valid_total{status="valid"} / ignoring(status) sum(response_json_valid_total)
+      - name: dvc_recording
+        rules:
+          - record: dvc_degraded
+            expr: dvc_in_sync == 0 and dvc_checkpoint_exists == 1
+          - record: model_pipeline_not_ready
+            expr: model_pipeline_ready == 0
+      - name: dvc_alerts
+        rules:
+          - alert: DvcCheckpointMissing
+            expr: dvc_checkpoint_exists == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: Model checkpoint missing on disk
+              description: The DVC-tracked checkpoint file is not present locally.
+          - alert: DvcRemoteMissing
+            expr: dvc_remote_present == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: DVC remote object missing in MinIO
+              description: Sidecar references a remote object that is not in MinIO.
+          - alert: DvcOutOfSync
+            expr: dvc_in_sync == 0 and dvc_checkpoint_exists == 1
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: Checkpoint not in sync with DVC sidecar or remote
+              description: Local checkpoint differs from DVC metadata or remote storage.
+          - alert: ModelPipelineNotReady
+            expr: model_pipeline_ready == 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: Model pipeline is not ready
+              description: Inference, DVC sync, or model reload is pending.
+          - alert: DvcSyncFailed
+            expr: increase(dvc_sync_total{result="error"}[1h]) > 0
+            labels:
+              severity: warning
+            annotations:
+              summary: DVC sync failed in the last hour
+              description: At least one DVC sync operation returned an error.
 ---
 apiVersion: apps/v1
 kind: Deployment

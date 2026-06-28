@@ -237,7 +237,13 @@ class TrainingJobManager:
             from app.training.dvc_status import sync_checkpoint_to_dvc
 
             dvc_sync = sync_checkpoint_to_dvc(destination, registry.storage)
+            from app.metrics import record_dvc_sync
+
+            record_dvc_sync(success=True)
         except Exception as exc:  # pylint: disable=broad-except
+            from app.metrics import record_dvc_sync
+
+            record_dvc_sync(success=False)
             dvc_sync = {"status": "error", "message": str(exc)}
 
         from app.training.model_status import build_model_status
@@ -249,5 +255,5 @@ class TrainingJobManager:
             "pending_reload": status["pending_reload"],
             "inference_status": status["status"],
             "dvc_sync": dvc_sync,
-            "pipeline": build_model_status(self.settings),
+            "pipeline": build_model_status(self.settings, quick=False, use_cache=False),
         }
