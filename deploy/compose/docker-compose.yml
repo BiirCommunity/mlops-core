@@ -77,11 +77,13 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/prometheus-rules.yml:/etc/prometheus/prometheus-rules.yml:ro
+      - prometheus-data-llm:/prometheus
     ports:
       - "9090:9090"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
 
   grafana-llm:
     image: grafana/grafana-oss:latest
@@ -182,6 +184,7 @@ services:
 
 volumes:
   grafana-data-llm:
+  prometheus-data-llm:
   minio-data-llm:
   mlflow-data-llm:
   auth-data-llm:
