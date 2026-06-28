@@ -86,6 +86,8 @@ metadata:
     app: prometheus
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: prometheus
@@ -100,11 +102,14 @@ spec:
           args:
             - --config.file=/etc/prometheus/prometheus.yml
             - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=30d
           ports:
             - containerPort: 9090
           volumeMounts:
             - name: config
               mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
           resources:
             requests:
               memory: 256Mi
@@ -114,6 +119,9 @@ spec:
         - name: config
           configMap:
             name: prometheus-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: prometheus-pvc
 ---
 apiVersion: v1
 kind: Service
