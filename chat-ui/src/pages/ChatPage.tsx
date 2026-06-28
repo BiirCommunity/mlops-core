@@ -118,8 +118,7 @@ export function ChatPage() {
               <div className="flex flex-col gap-1">
                 {message.userRating != null ? (
                   <p className="text-sm text-green-300">
-                    ✓ Оценка {message.userRating}/5 ({ratingLabel(message.userRating)}) —
-                    учтена в Prometheus и drift
+                    ✓ Оценка {message.userRating}/5 ({ratingLabel(message.userRating)})
                   </p>
                 ) : (
                   <>
