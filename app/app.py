@@ -693,6 +693,7 @@ async def prometheus_request_middleware(request: Request, call_next):
         )
     return response
 
+
 @app.get(
     f"/{API_VERSION}",
     tags=["v1-monitoring"],
