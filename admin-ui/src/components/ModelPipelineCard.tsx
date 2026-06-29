@@ -191,8 +191,7 @@ export function ModelPipelineCard({
         <div className="flex items-start gap-2 text-sm text-amber-200">
           <RefreshCw size={14} className="mt-0.5 shrink-0" />
           На диске v{inference.deployed_version}, в памяти v
-          {inference.loaded_version ?? "?"} — выполните{" "}
-          <code className="rounded bg-black/30 px-1">docker compose restart app</code>
+          {inference.loaded_version ?? "?"} — требуется перезапуск сервиса.
         </div>
       ) : null}
 

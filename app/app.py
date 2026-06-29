@@ -693,12 +693,6 @@ async def prometheus_request_middleware(request: Request, call_next):
         )
     return response
 
-
-@app.get("/", tags=["v1-monitoring"], include_in_schema=True, summary="Каталог API")
-async def api_root() -> dict[str, object]:
-    return build_api_index(via_ingress=False)
-
-
 @app.get(
     f"/{API_VERSION}",
     tags=["v1-monitoring"],
