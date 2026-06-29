@@ -35,7 +35,7 @@ export function ModelsPage() {
       const dvcOk = result.dvc_sync?.status === "synced";
       if (result.pending_reload) {
         setMessage(
-          `v${result.version} на диске${dvcOk ? ", DVC sync ✓" : ""}. Перезапустите inference: docker compose restart app`,
+          `v${result.version} на диске${dvcOk ? ", DVC sync ✓" : ""}. Требуется перезапуск сервиса.`,
         );
       } else if (dvcOk) {
         setMessage(`v${result.version} задеплоена, DVC и inference синхронизированы.`);
@@ -177,7 +177,7 @@ export function ModelsPage() {
         <div>
           <h2 className="text-xl font-semibold">MLflow Registry</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Deploy: MinIO → /models/model.pt + DVC sync. Restart app для загрузки в GPU.
+            Deploy: MinIO → /models/model.pt + DVC sync. Требуется перезапуск сервиса для загрузки в GPU.
           </p>
         </div>
         <div className="table-wrap">
